@@ -3,3 +3,4 @@ sessions/
 logs/
 *.db
 *.log
+__pycache__/
