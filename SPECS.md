@@ -772,7 +772,7 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 ### Hermes Agent Configuration
 
 **Container:** `hermes` (nousresearch/hermes-agent)
-**Volume mount:** `/home/lucas/.hermes` → `/opt/data`
+**Volume mount:** `~/.hermes` → `/opt/data`
 **Model:** minimax-m2.7 via opencode-go
 **Platform:** Telegram only
 **Cron schedule:** `*/5 11-15,19-21 * * 1-5` (UTC) = `*/5 08-12,16-18 * * 1-5` (BRT)

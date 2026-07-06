@@ -86,7 +86,7 @@ cronjob(
   schedule="<duration_minutes>m",
   name="focus-end-<id>",
   prompt="[FOCUS SESSION END] Session: <task> (<duration>min). Check focus_sessions.json for this session. If user hasn't responded yet, ask how it went. If no response after 20min, escalate. Update focus_sessions.json status to completed/expired.",
-  deliver="telegram:TELEGRAM_CHAT_ID",
+  deliver="telegram:${TELEGRAM_CHAT_ID}",
   enabled_toolsets=["file", "send_message"]
 )
 ```
@@ -98,7 +98,7 @@ cronjob(
   schedule="<duration_minutes/2>m",
   name="focus-mid-<id>",
   prompt="[FOCUS SESSION MIDPOINT] Session: <task>. Check focus_sessions.json. Ask Lucas if he's still working on it. One question, no pressure. Update midpoint_sent to true.",
-  deliver="telegram:TELEGRAM_CHAT_ID",
+  deliver="telegram:${TELEGRAM_CHAT_ID}",
   enabled_toolsets=["file", "send_message"]
 )
 ```

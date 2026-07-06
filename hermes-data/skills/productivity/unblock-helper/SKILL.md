@@ -58,7 +58,7 @@ cronjob(
   schedule="10m",
   name="unblock-checkin-<timestamp>",
   prompt="[UNBLOCK CHECKIN] Lucas said he'd try: <micro-step>. Ask casually: 'E aí, <micro-step>? Conseguiu?' One question, no pressure. If he says no, just acknowledge and don't push. Respond [SILENT] if no answer.",
-  deliver="telegram:TELEGRAM_CHAT_ID",
+  deliver="telegram:${TELEGRAM_CHAT_ID}",
   enabled_toolsets=["send_message"]
 )
 ```
