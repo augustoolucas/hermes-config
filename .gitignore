@@ -4,3 +4,4 @@ logs/
 *.db
 *.log
 __pycache__/
+.cortexkit/
