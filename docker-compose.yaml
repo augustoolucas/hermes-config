@@ -29,6 +29,7 @@ services:
         limits:
           memory: 4G
           cpus: "2.0"
+    shm_size: "2gb"
 
   searxng-core:
     container_name: searxng-core
