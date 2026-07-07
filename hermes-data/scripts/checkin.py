@@ -16,6 +16,13 @@ import sys
 import yaml
 from datetime import datetime, timezone, timedelta
 
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    HAS_GOOGLE = True
+except ImportError:
+    HAS_GOOGLE = False
+
 # ─── YAML Frontmatter ──────────────────────────────────────────────────
 
 def parse_frontmatter(text):
@@ -127,6 +134,14 @@ FOLLOWUP_DELAY_SEC = 1200  # 20 min de espera
 FOLLOWUP_WINDOW_SEC = 300  # 5 min para enviar follow-up
 ESCALATION_DELAY_SEC = 1200  # 20 min após follow-up para escalação
 FOCUS_RETRY_WINDOW_SEC = 900  # 15 min para retry de focus session check-in
+
+# Google Calendar
+GOOGLE_SERVICE_ACCOUNT_PATH = os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH", "/opt/data/google-service-account.json")
+GOOGLE_CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "")
+PROACTIVE_COOLDOWN_SEC = 3600  # 1h entre sugestões proativas de foco
+PROACTIVE_WINDOW_START = 9   # 09:00 BRT
+PROACTIVE_WINDOW_END = 18    # 18:00 BRT
+PROACTIVE_MIN_DURATION = 60  # mínimo 60 min livres para sugerir foco
 
 # Feriados — sem check-in nestas datas (formato YYYY-MM-DD)
 HOLIDAYS = {
@@ -581,6 +596,12 @@ MSG_REENGAGEMENT = (
     "Lucas, ainda não registramos nada hoje. 2 minutos, status rápido? 📝"
 )
 
+MSG_PROACTIVE_FOCUS = (
+    "Tem {duration}min livres até {end_time}h. 📅\n"
+    "{task_hint}"
+    "Quer focar?"
+)
+
 MSG_MISSED_RECAP = (
     "\n\n💡 *PS:* Não nos falamos no check-in anterior — "
     "se quiser retomar algo, fique à vontade!"
@@ -649,6 +670,157 @@ def load_yesterday_plan(today_date_str):
     if not summary:
         return None
     return summary.get("plans_for_next_day")
+
+
+# ─── Google Calendar ─────────────────────────────────────────────────
+
+def _get_calendar_service():
+    """Autentica com service account e retorna o serviço Calendar API."""
+    if not HAS_GOOGLE:
+        return None
+    if not os.path.exists(GOOGLE_SERVICE_ACCOUNT_PATH):
+        return None
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            GOOGLE_SERVICE_ACCOUNT_PATH,
+            scopes=["https://www.googleapis.com/auth/calendar.readonly"],
+        )
+        return build("calendar", "v3", credentials=creds)
+    except Exception:
+        return None
+
+
+def get_free_windows(date_brt):
+    """Consulta Google Calendar e retorna blocos livres >= 60min entre 09h-18h BRT.
+    Retorna lista de (start_epoch, end_epoch, duration_minutes)."""
+    if not GOOGLE_CALENDAR_ID:
+        return []
+
+    service = _get_calendar_service()
+    if not service:
+        return []
+
+    try:
+        day_start = date_brt.replace(hour=PROACTIVE_WINDOW_START, minute=0, second=0, microsecond=0)
+        day_end = date_brt.replace(hour=PROACTIVE_WINDOW_END, minute=0, second=0, microsecond=0)
+
+        time_min = day_start.isoformat()
+        time_max = day_end.isoformat()
+
+        events_result = (
+            service.events()
+            .list(
+                calendarId=GOOGLE_CALENDAR_ID,
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
+        )
+        busy = []
+        for event in events_result.get("items", []):
+            start = event["start"].get("dateTime", event["start"].get("date"))
+            end = event["end"].get("dateTime", event["end"].get("date"))
+            if "T" not in start:
+                continue  # eventos all-day, ignorar
+            busy.append((
+                int(datetime.fromisoformat(start).timestamp()),
+                int(datetime.fromisoformat(end).timestamp()),
+            ))
+
+        busy.sort()
+
+        free_windows = []
+        cursor = int(day_start.timestamp())
+        day_end_epoch = int(day_end.timestamp())
+
+        for bs, be in busy:
+            if bs > cursor:
+                duration = (bs - cursor) // 60
+                if duration >= PROACTIVE_MIN_DURATION:
+                    free_windows.append((cursor, bs, duration))
+            cursor = max(cursor, be)
+
+        if day_end_epoch > cursor:
+            duration = (day_end_epoch - cursor) // 60
+            if duration >= PROACTIVE_MIN_DURATION:
+                free_windows.append((cursor, day_end_epoch, duration))
+
+        return free_windows
+
+    except Exception:
+        return []
+
+
+def get_pending_task(date_str):
+    """Busca a task pendente ou em andamento mais antiga do daily summary."""
+    summary = load_daily_summary(date_str)
+    if not summary:
+        _, summary = load_last_available_summary(days_back=7, start_offset=1)
+        if not summary:
+            return None
+
+    tasks = summary.get("tasks") or []
+    for t in tasks:
+        if t.get("status") in ("pendente", "em andamento"):
+            return t.get("name", "")
+    return None
+
+
+def check_proactive_suggestion():
+    """Verifica se devemos sugerir um foco baseado no calendário.
+    Retorna uma action JSON ou None."""
+    now_brt, now_epoch = brt_now()
+
+    if now_brt.hour < PROACTIVE_WINDOW_START or now_brt.hour >= PROACTIVE_WINDOW_END:
+        return None
+
+    if is_in_focus_session():
+        return None
+
+    # Verifica se o usuário já interagiu hoje
+    state = load_state()
+    windows = state.get("windows", {})
+    for w_str in ("1", "2", "3"):
+        ws = windows.get(w_str)
+        if ws and ws.get("user_responded_at"):
+            return None
+
+    # Cooldown
+    last = state.get("proactive_suggestion_last", 0)
+    if last and now_epoch - last < PROACTIVE_COOLDOWN_SEC:
+        return None
+
+    free_windows = get_free_windows(now_brt)
+    if not free_windows:
+        return None
+
+    # Pega a primeira janela livre que começa nos próximos 15 min
+    for start_epoch, end_epoch, duration in free_windows:
+        if start_epoch <= now_epoch + 900:  # começa nos próximos 15 min
+            end_dt = datetime.fromtimestamp(end_epoch, tz=TZ)
+            end_time = end_dt.strftime("%H:%M")
+
+            task = get_pending_task(now_brt.strftime("%Y-%m-%d"))
+            task_hint = f"Sugestão: {task}.\n" if task else ""
+
+            msg = MSG_PROACTIVE_FOCUS.format(
+                duration=duration,
+                end_time=end_time,
+                task_hint=task_hint,
+            )
+
+            state["proactive_suggestion_last"] = now_epoch
+            save_state(state)
+
+            return json.dumps({
+                "action": "suggest_focus",
+                "window": 0,
+                "message": msg,
+            })
+
+    return None
 
 
 # ─── Lógica Principal ─────────────────────────────────────────────────
@@ -907,6 +1079,12 @@ def main():
                     "marker": marker,
                 }))
                 return
+
+    # ── Sugestão proativa de foco (Google Calendar) ────────────────
+    proactive = check_proactive_suggestion()
+    if proactive:
+        print(proactive)
+        return
 
     # ── Re-engagement (~15h BRT) ───────────────────────────────────
     reengagement = check_reengagement()
