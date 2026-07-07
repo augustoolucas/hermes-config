@@ -804,7 +804,7 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - Survives restarts without re-initialization
 - Git-backable
 
-**Note:** Hindsight was previously configured in `local_embedded` mode with PostgreSQL. It has been retired in favor of the LLM Wiki. The hindsight config and data remain in `/opt/data/.hindsight/` and `/opt/data/hindsight/config.json` for reference but are no longer used.
+**Note:** Hindsight was previously configured in `local_embedded` mode with PostgreSQL. All hindsight data (profiles, logs, config, embedded PostgreSQL) was removed in v2.5.
 
 ---
 
@@ -997,7 +997,7 @@ Added in v2.5.
 | `/opt/data/skills/productivity/unblock-helper/SKILL.md` | Created (v2.3) | Task initiation paralysis — micro-step barrier reduction |
 | `/opt/data/skills/research/llm-wiki/SKILL.md` | Enabled (v2.5) | Inspectable Markdown long-term memory (built-in Hermes skill) |
 | `/opt/data/wiki/` | Created (v2.5) | LLM Wiki directory — entities, concepts, schema |
-| `/opt/data/.hindsight/` | Retired (v2.5) | Hindsight data kept for reference, no longer used |
+| `/opt/data/.hindsight/` | Removed (v2.5) | Hindsight data, config, and embedded PostgreSQL deleted |
 | `/opt/data/scripts/checkin.py` | Updated | v5 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions |
 | `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
 | `/opt/data/config.yaml` | Updated (v2.4-v2.5) | Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH |
