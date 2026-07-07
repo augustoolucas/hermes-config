@@ -45,15 +45,22 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
 docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
-echo "=== Copiando custom meet plugins ==="
-docker exec hermes mkdir -p /opt/data/profiles/accountability/custom_plugins
-docker cp hermes-data/plugins/google_meet/custom/gemini_live.py \
-    hermes:/opt/data/profiles/accountability/custom_plugins/gemini_live.py
-
-echo "=== Instalando sitecustomize para monkey-patch do meet ==="
-SITE_PKGS=$(docker exec hermes python3 -c "import site; print(site.getsitepackages()[0])")
-docker cp hermes-data/plugins/google_meet/custom/sitecustomize.py \
-    hermes:${SITE_PKGS}/sitecustomize.py
+echo "=== Copiando plugin gemini_meet ==="
+docker exec hermes mkdir -p /opt/data/plugins/gemini_meet
+docker cp hermes-data/plugins/gemini_meet/plugin.yaml \
+    hermes:/opt/data/plugins/gemini_meet/plugin.yaml
+docker cp hermes-data/plugins/gemini_meet/__init__.py \
+    hermes:/opt/data/plugins/gemini_meet/__init__.py
+docker cp hermes-data/plugins/gemini_meet/tools.py \
+    hermes:/opt/data/plugins/gemini_meet/tools.py
+docker cp hermes-data/plugins/gemini_meet/gemini_live.py \
+    hermes:/opt/data/plugins/gemini_meet/gemini_live.py
+docker cp hermes-data/plugins/gemini_meet/meet_bot.py \
+    hermes:/opt/data/plugins/gemini_meet/meet_bot.py
+docker cp hermes-data/plugins/gemini_meet/process_manager.py \
+    hermes:/opt/data/plugins/gemini_meet/process_manager.py
+docker cp hermes-data/plugins/gemini_meet/audio_bridge.py \
+    hermes:/opt/data/plugins/gemini_meet/audio_bridge.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 
