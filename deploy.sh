@@ -45,9 +45,12 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
 docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
-echo "=== Sincronizando checkin.py para o perfil accountability ==="
-docker exec hermes mkdir -p /opt/data/profiles/accountability/scripts
-docker cp hermes-data/scripts/checkin.py hermes:/opt/data/profiles/accountability/scripts/checkin.py
+echo "=== Copiando custom meet plugins ==="
+docker exec hermes mkdir -p /opt/data/profiles/accountability/custom_plugins
+docker cp hermes-data/plugins/google_meet/custom/gemini_live.py \
+    hermes:/opt/data/profiles/accountability/custom_plugins/gemini_live.py
+docker cp hermes-data/plugins/google_meet/custom/startup_hook.py \
+    hermes:/opt/data/profiles/accountability/custom_plugins/startup_hook.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 
