@@ -9,7 +9,15 @@ from __future__ import annotations
 
 def register(ctx):
     """Register gemini_meet tools with Hermes."""
-    from plugins.gemini_meet.tools import (
+    import sys
+    import os
+
+    # Ensure the plugin's own directory is importable
+    plugin_dir = os.path.dirname(os.path.abspath(__file__))
+    if plugin_dir not in sys.path:
+        sys.path.insert(0, plugin_dir)
+
+    from tools import (
         handle_gemini_meet_join,
         handle_gemini_meet_status,
         handle_gemini_meet_transcript,

@@ -101,7 +101,12 @@ def handle_gemini_meet_join(args: dict) -> str:
     if not url or "meet.google.com" not in url:
         return json.dumps({"error": "Invalid Google Meet URL"})
 
-    from plugins.gemini_meet.process_manager import ProcessManager
+    import sys
+    import os
+    plugin_dir = os.path.dirname(os.path.abspath(__file__))
+    if plugin_dir not in sys.path:
+        sys.path.insert(0, plugin_dir)
+    from process_manager import ProcessManager
 
     pm = ProcessManager()
     guest_name = args.get("guest_name", "Hermes")

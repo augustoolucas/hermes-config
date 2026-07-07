@@ -103,7 +103,7 @@ def start(
 
     Returns a dict summarizing the started bot.
     """
-    from plugins.gemini_meet.meet_bot import _is_safe_meet_url, _meeting_id_from_url
+    from gemini_meet.meet_bot import _is_safe_meet_url, _meeting_id_from_url
 
     if not _is_safe_meet_url(url):
         return {

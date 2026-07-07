@@ -284,7 +284,12 @@ def _start_realtime_speaker(
     device selected as default input.
     """
     try:
-        from plugins.gemini_meet.gemini_live import GeminiLiveSession as RealtimeSession
+        import sys
+        import os
+        plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if plugin_dir not in sys.path:
+            sys.path.insert(0, plugin_dir)
+        from gemini_meet.gemini_live import GeminiLiveSession as RealtimeSession
         from plugins.google_meet.realtime.openai_client import RealtimeSpeaker
     except Exception as e:
         state.set(error=f"realtime import failed: {e}")
@@ -499,7 +504,7 @@ def run_bot() -> int:  # noqa: C901 — orchestration, explicit branches
             rt["enabled"] = False
         else:
             try:
-                from plugins.gemini_meet.audio_bridge import AudioBridge
+                from gemini_meet.audio_bridge import AudioBridge
                 bridge = AudioBridge()
                 rt["bridge_info"] = bridge.setup()
                 rt["bridge"] = bridge

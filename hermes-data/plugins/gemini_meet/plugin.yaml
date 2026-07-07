@@ -2,10 +2,13 @@ name: gemini_meet
 version: 0.1.0
 description: "Google Meet with Gemini Live realtime voice — self-contained plugin"
 author: hermes-config
-license: MIT
-platforms: [linux, macos, windows]
-metadata:
-  hermes:
-    tags: [google-meet, gemini-live, realtime, voice, meetings]
-    category: productivity
-    related_skills: [google-workspace]
+kind: standalone
+platforms:
+  - linux
+  - macos
+provides_tools:
+  - gemini_meet_join
+  - gemini_meet_status
+  - gemini_meet_transcript
+  - gemini_meet_say
+  - gemini_meet_leave
