@@ -984,6 +984,7 @@ Added in v2.5.
 - Gamification streaks are basic (consecutive days) — no weighted scoring or category-specific streaks
 - Git backup is best-effort — if git fails silently, no alert is raised
 - fastCRW (crw) uses LightPanda for JS rendering; complex anti-bot pages may require the optional Chrome tier (not included due to resource constraints)
+- Voice check-ins depend on TTS being configured (Edge TTS enabled in v2.5, Portuguese voice `pt-BR-FranciscaNeural`)
 
 ---
 
@@ -1000,7 +1001,7 @@ Added in v2.5.
 | `/opt/data/.hindsight/` | Removed (v2.5) | Hindsight data, config, and embedded PostgreSQL deleted |
 | `/opt/data/scripts/checkin.py` | Updated | v5 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions |
 | `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
-| `/opt/data/config.yaml` | Updated (v2.4-v2.5) | Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH |
+| `/opt/data/config.yaml` | Updated (v2.4-v2.5) | Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR) |
 | `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL |
 | `deploy.sh` | Created (v2.3) | Automated deployment script |
 | `searxng/core-config/settings.yml` | Created (v2.5) | SearXNG configuration with JSON format enabled |
@@ -1032,7 +1033,7 @@ The following improvements were identified during the v2 design process. They ar
 
 ### Low Priority
 
-6. **Voice Check-in** — Use Hermes TTS (Edge TTS, free) to deliver check-ins as voice messages on Telegram. More natural for quick status updates.
+6. **Voice Check-in** — Edge TTS configured in v2.5 (`pt-BR-FranciscaNeural`). Voice check-in delivery logic not yet integrated into checkin.py.
 
 7. **Dashboard Web** — Visual dashboard with streaks, productivity graphs, focus session history. Hermes has a built-in web dashboard feature.
 
