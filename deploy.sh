@@ -51,6 +51,11 @@ docker cp hermes-data/plugins/google_meet/custom/gemini_live.py \
     hermes:/opt/data/profiles/accountability/custom_plugins/gemini_live.py
 docker cp hermes-data/plugins/google_meet/custom/startup_hook.py \
     hermes:/opt/data/profiles/accountability/custom_plugins/startup_hook.py
+
+echo "=== Instalando sitecustomize para monkey-patch do meet ==="
+SITE_PKGS=$(docker exec hermes python3 -c "import site; print(site.getsitepackages()[0])")
+docker cp hermes-data/plugins/google_meet/custom/sitecustomize.py \
+    hermes:${SITE_PKGS}/sitecustomize.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 
