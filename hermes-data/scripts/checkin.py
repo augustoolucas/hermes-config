@@ -789,17 +789,21 @@ def check_proactive_suggestion():
             return None
 
     # Cooldown
-    last = state.get("proactive_suggestion_last", 0)
-    if last and now_epoch - last < PROACTIVE_COOLDOWN_SEC:
+    last = state.get("proactive_suggestion_last") or 0
+    if now_epoch - last < PROACTIVE_COOLDOWN_SEC:
         return None
 
     free_windows = get_free_windows(now_brt)
     if not free_windows:
         return None
 
-    # Pega a primeira janela livre que começa nos próximos 15 min
     for start_epoch, end_epoch, duration in free_windows:
-        if start_epoch <= now_epoch + 900:  # começa nos próximos 15 min
+        if end_epoch <= now_epoch:
+            continue
+        if start_epoch < now_epoch - 1800:
+            continue
+        if start_epoch > now_epoch + 900:
+            continue
             end_dt = datetime.fromtimestamp(end_epoch, tz=TZ)
             end_time = end_dt.strftime("%H:%M")
 
