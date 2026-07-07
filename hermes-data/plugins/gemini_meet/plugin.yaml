@@ -12,3 +12,4 @@ provides_tools:
   - gemini_meet_transcript
   - gemini_meet_say
   - gemini_meet_leave
+  - gemini_meet_create

@@ -22,11 +22,13 @@ def register(ctx):
         handle_gemini_meet_transcript,
         handle_gemini_meet_say,
         handle_gemini_meet_leave,
+        handle_gemini_meet_create,
         GEMINI_MEET_JOIN_SCHEMA,
         GEMINI_MEET_STATUS_SCHEMA,
         GEMINI_MEET_TRANSCRIPT_SCHEMA,
         GEMINI_MEET_SAY_SCHEMA,
         GEMINI_MEET_LEAVE_SCHEMA,
+        GEMINI_MEET_CREATE_SCHEMA,
     )
 
     ctx.register_tool(
@@ -65,4 +67,13 @@ def register(ctx):
         description="Leave the current Gemini Meet session.",
         schema=GEMINI_MEET_LEAVE_SCHEMA,
         handler=handle_gemini_meet_leave,
+    )
+    ctx.register_tool(
+        name="gemini_meet_create",
+        toolset="gemini_meet",
+        description="Create a Google Calendar event with a Google Meet conference link. "
+        "Returns the Meet URL, ready for gemini_meet_join. "
+        "Uses the Google OAuth token already configured on this profile.",
+        schema=GEMINI_MEET_CREATE_SCHEMA,
+        handler=handle_gemini_meet_create,
     )

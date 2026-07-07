@@ -67,6 +67,22 @@ GEMINI_MEET_LEAVE_SCHEMA: dict[str, Any] = {
     "properties": {},
 }
 
+GEMINI_MEET_CREATE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "summary": {
+            "type": "string",
+            "description": "Meeting title / summary",
+            "default": "Reunião Hermes",
+        },
+        "duration": {
+            "type": "string",
+            "description": "Meeting duration (e.g. '30m', '1h')",
+            "default": "30m",
+        },
+    },
+}
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -174,6 +190,114 @@ def handle_gemini_meet_say(args: dict, **_kw: Any) -> str:
         return json.dumps({"ok": True, "queued": text})
     except OSError as e:
         return json.dumps({"error": str(e)})
+
+
+def handle_gemini_meet_create(args: dict, **_kw: Any) -> str:
+    """Create a Google Calendar event with a Google Meet conference link.
+
+    Uses the OAuth token from the google-workspace skill (already
+    configured on this profile). Returns the Meet URL.
+    """
+    from datetime import datetime, timedelta, timezone as dt_timezone
+
+    summary = args.get("summary", "Reunião Hermes").strip()
+    duration_raw = args.get("duration", "30m").strip().lower()
+
+    # Parse duration.
+    duration_s = 1800  # 30 min default
+    try:
+        if duration_raw.endswith("h"):
+            duration_s = int(float(duration_raw[:-1]) * 3600)
+        elif duration_raw.endswith("m"):
+            duration_s = int(float(duration_raw[:-1]) * 60)
+        else:
+            duration_s = int(float(duration_raw))
+    except (ValueError, TypeError):
+        pass
+
+    # Resolve the token path — check both profile and root.
+    token_path = None
+    candidates = [
+        os.path.join(os.environ.get("HERMES_HOME", "/opt/data"), "google_token.json"),
+        "/opt/data/google_token.json",
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            token_path = p
+            break
+    if not token_path:
+        return json.dumps({"error": "Google OAuth token not found — run hermes meet auth first"})
+
+    try:
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+    except ImportError as e:
+        return json.dumps({"error": f"google-auth / google-api-python-client not installed: {e}"})
+
+    try:
+        with open(token_path) as f:
+            token_data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        return json.dumps({"error": f"Failed to read token: {e}"})
+
+    try:
+        creds = Credentials(
+            token=token_data.get("token"),
+            refresh_token=token_data.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=token_data.get("client_id"),
+            client_secret=token_data.get("client_secret"),
+            scopes=token_data.get("scopes", ["https://www.googleapis.com/auth/calendar"]),
+        )
+        service = build("calendar", "v3", credentials=creds, cache_discovery=False)
+
+        now = datetime.now(dt_timezone.utc)
+        end = now + timedelta(seconds=duration_s)
+
+        request_id = f"gemini-meet-{now.strftime('%Y%m%d%H%M%S')}"
+        event = {
+            "summary": summary,
+            "start": {
+                "dateTime": now.isoformat(),
+                "timeZone": "America/Recife",
+            },
+            "end": {
+                "dateTime": end.isoformat(),
+                "timeZone": "America/Recife",
+            },
+            "conferenceData": {
+                "createRequest": {
+                    "requestId": request_id,
+                    "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                },
+            },
+        }
+
+        created = service.events().insert(
+            calendarId="primary",
+            conferenceDataVersion=1,
+            body=event,
+        ).execute()
+
+        meet_url = None
+        if created.get("conferenceData"):
+            for ep in created["conferenceData"].get("entryPoints", []):
+                if ep.get("entryPointType") == "video":
+                    meet_url = ep["uri"]
+                    break
+
+        if not meet_url:
+            meet_url = created.get("hangoutLink", "")
+
+        return json.dumps({
+            "ok": True,
+            "meetUrl": meet_url,
+            "eventId": created.get("id"),
+            "summary": created.get("summary"),
+            "htmlLink": created.get("htmlLink"),
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to create Meet: {e}"})
 
 
 def handle_gemini_meet_leave(_args: dict, **_kw: Any) -> str:
