@@ -639,7 +639,8 @@ def check_reengagement():
 
     # Verifica se algum check-in ainda vai acontecer (W3 ainda não passou)
     w3 = windows.get("3")
-    if w3 and w3.get("scheduled_epoch", 0) > now_epoch:
+    w3_scheduled = w3.get("scheduled_epoch") if w3 else None
+    if w3_scheduled and w3_scheduled > now_epoch:
         return None  # W3 ainda vai acontecer, não re-engage ainda
 
     # Verifica se está em focus session ativa
