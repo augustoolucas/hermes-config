@@ -27,13 +27,20 @@ docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
 
 echo "=== Copiando arquivos para o container ==="
 docker cp hermes-data/SOUL.md                         hermes:/opt/data/SOUL.md
+docker cp hermes-data/SOUL.md                         hermes:/opt/data/profiles/accountability/SOUL.md
 docker cp hermes-data/scripts/checkin.py               hermes:/opt/data/scripts/checkin.py
 docker cp hermes-data/skills/productivity/daily-status-session/SKILL.md \
     hermes:/opt/data/skills/productivity/daily-status-session/SKILL.md
+docker cp hermes-data/skills/productivity/daily-status-session/SKILL.md \
+    hermes:/opt/data/profiles/accountability/skills/productivity/daily-status-session/SKILL.md
 docker cp hermes-data/skills/productivity/focus-session-handler/SKILL.md \
     hermes:/opt/data/skills/productivity/focus-session-handler/SKILL.md
+docker cp hermes-data/skills/productivity/focus-session-handler/SKILL.md \
+    hermes:/opt/data/profiles/accountability/skills/productivity/focus-session-handler/SKILL.md
 docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/skills/productivity/unblock-helper/SKILL.md
+docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
+    hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
 echo "=== Sincronizando cópias do checkin.py ==="
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py

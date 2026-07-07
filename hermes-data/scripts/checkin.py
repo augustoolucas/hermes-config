@@ -115,7 +115,7 @@ def git_backup_commit(date_str):
         pass  # git backup é best-effort, nunca deve quebrar o checkin
 
 # ─── Config ───────────────────────────────────────────────────────────
-BASE_DIR = os.path.expanduser("~/.cron/responsibility_partner")
+BASE_DIR = os.environ.get("CHECKIN_DATA_DIR", os.path.expanduser("~/.cron/responsibility_partner"))
 STATE_FILE = os.path.join(BASE_DIR, "state.json")
 SUMMARY_PREFIX = os.path.join(BASE_DIR, "daily_summary")
 HISTORY_FILE = os.path.join(BASE_DIR, "history.jsonl")

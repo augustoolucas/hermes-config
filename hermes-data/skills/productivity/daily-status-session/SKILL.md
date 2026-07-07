@@ -22,10 +22,10 @@ Also use when:
 When Lucas gives a status update or says "bom dia", do these in parallel:
 
 ```
-read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível (até 7 dias)
-read_file(/opt/data/.cron/responsibility_partner/focus_sessions.json)           # focus sessions ativas
-read_file(/opt/data/wiki/index.md)                                              # LLM Wiki — fatos duráveis
-session_search(query="...", limit=3)                                            # contexto cross-session
+read_file(/opt/data/profiles/accountability/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível (até 7 dias)
+read_file(/opt/data/profiles/accountability/.cron/responsibility_partner/focus_sessions.json)           # focus sessions ativas
+read_file(/opt/data/profiles/accountability/wiki/index.md)                                              # LLM Wiki — fatos duráveis
+session_search(query="...", limit=3)                                                                    # contexto cross-session
 ```
 
 The daily summary file path is deterministic: `daily_summary_YYYY-MM-DD.md`. Do NOT run `search_files` to discover it — the path is known. Just `read_file` directly.
@@ -34,10 +34,10 @@ The daily summary file path is deterministic: `daily_summary_YYYY-MM-DD.md`. Do 
 
 If today's summary already exists (Lucas coming back mid-day), read BOTH the last available and today's in parallel:
 ```
-read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível
-read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # hoje
-read_file(/opt/data/.cron/responsibility_partner/focus_sessions.json)           # focus sessions
-read_file(/opt/data/wiki/index.md)                                              # LLM Wiki
+read_file(/opt/data/profiles/accountability/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível
+read_file(/opt/data/profiles/accountability/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # hoje
+read_file(/opt/data/profiles/accountability/.cron/responsibility_partner/focus_sessions.json)           # focus sessions
+read_file(/opt/data/profiles/accountability/wiki/index.md)                                              # LLM Wiki
 session_search(query="...", limit=3)
 ```
 
