@@ -45,7 +45,9 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
 docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
-echo "=== Sincronizando cópias do checkin.py ==="
+echo "=== Sincronizando checkin.py para o perfil accountability ==="
+docker exec hermes mkdir -p /opt/data/profiles/accountability/scripts
+docker cp hermes-data/scripts/checkin.py hermes:/opt/data/profiles/accountability/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 

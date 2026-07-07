@@ -11,7 +11,7 @@
       "model": "deepseek-v4-flash",
       "provider": null,
       "base_url": null,
-      "script": "/opt/data/scripts/checkin.py",
+      "script": "checkin.py",
       "context_from": null,
       "schedule": {
         "kind": "cron",
