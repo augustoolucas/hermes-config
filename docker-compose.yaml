@@ -21,6 +21,7 @@ services:
       - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
       - SEARXNG_URL=http://searxng-core:8080
       - FIRECRAWL_API_URL=http://crw:3000
+      - WIKI_PATH=/opt/data/wiki
     deploy:
       resources:
         limits:

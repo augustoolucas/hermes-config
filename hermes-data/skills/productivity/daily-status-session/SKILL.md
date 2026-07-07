@@ -24,6 +24,7 @@ When Lucas gives a status update or says "bom dia", do these in parallel:
 ```
 read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível (até 7 dias)
 read_file(/opt/data/.cron/responsibility_partner/focus_sessions.json)           # focus sessions ativas
+read_file(/opt/data/wiki/index.md)                                              # LLM Wiki — fatos duráveis
 session_search(query="...", limit=3)                                            # contexto cross-session
 ```
 
@@ -36,6 +37,7 @@ If today's summary already exists (Lucas coming back mid-day), read BOTH the las
 read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # último disponível
 read_file(/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md)  # hoje
 read_file(/opt/data/.cron/responsibility_partner/focus_sessions.json)           # focus sessions
+read_file(/opt/data/wiki/index.md)                                              # LLM Wiki
 session_search(query="...", limit=3)
 ```
 
@@ -132,8 +134,8 @@ Plus `concluído` for done tasks.
 - **Do NOT use `search_files` to find the daily summary path.** The path is deterministic — go straight to `read_file`. Using search_files adds an unnecessary round trip.
 - **Do NOT do a second round of tool calls** if you already have the daily summary content from the first parallel batch. Parse and respond.
 - **Save the daily summary after EVERY status update**, not just at end of conversation. The cron system depends on it for reply detection.
-- **Keep task status in daily_summary files, NOT in memory.** Memory is for durable facts only.
-- **Tasks concluídas stay in daily_summary** — they don't get promoted to memory.
+- **Keep task status in daily_summary files, NOT in the wiki.** The wiki is for durable facts only (preferences, config, conventions, projects).
+- **Tasks concluídas stay in daily_summary** — they don't get promoted to the wiki.
 - **Confirm what was saved.** After writing the daily_summary, tell Lucas what you registered (one line). This lets him catch mismatches immediately instead of discovering later that the cron job has stale data.
 - **Don't let infrastructure debugging derail the conversation.** Cron errors, rate limits, skill config — these are YOUR problems, not his. Handle them without losing focus on his task status. Circle back to his tasks before the conversation ends.
 - **When interrupted mid-status, resume.** If Lucas reported a task status and the conversation got sidetracked (by meta-discussion or error reports), explicitly circle back: "Só pra confirmar, teu status ficou X. Alguma atualização desde então?"

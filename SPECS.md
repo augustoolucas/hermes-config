@@ -1,4 +1,4 @@
-# Hermes — Accountability Partner v2.4 Spec
+# Hermes — Accountability Partner v2.5 Spec
 
 ---
 
@@ -11,13 +11,14 @@ Hermes is an accountability partner for a developer (Lucas). It operates in two 
 1. **Live sessions** — on-demand interaction when Lucas initiates a conversation
 2. **Scheduled check-ins** — automated prompts at 3 windows during workdays
 
-Version 2 adds five major capabilities on top of v1:
+Version 2 adds six major capabilities on top of v1:
 
 1. **Focus Sessions** — declared periods of concentrated work with dedicated check-ins
 2. **Escalation** — mandatory end-of-day status capture with multi-level follow-up
 3. **Gamification** — subtle streak and milestone tracking for motivation
 4. **ADHD-Specific Features** (v2.3) — re-engagement nudges, intention-of-the-day, unblock helper for task paralysis, nightly preparation
 5. **Calendar-Aware Proactive Suggestions** (v2.4) — Google Calendar integration detects free blocks and suggests focus sessions
+6. **LLM Wiki Memory** (v2.5) — inspectable Markdown-based long-term memory replacing Hindsight; free web search via SearXNG and web extraction via fastCRW
 
 The assistant does not execute tasks. It monitors, tracks, reminds, and maintains cross-session memory.
 
@@ -380,9 +381,11 @@ The assistant maintains two types of memory:
 - Contains: date, free-text summary, task list with status and notes, gamification metrics
 - Files are used to reconstruct context for check-ins and future sessions
 
-**Long-term (semantic memory):**
-- Stores durable facts about the user: preferences, communication style, environment details, recurring conventions
-- Persists across sessions indefinitely
+**Long-term (LLM Wiki):**
+- Stores durable facts about the user: preferences, communication style, environment details, projects, recurring conventions
+- Persists as Markdown files in `/opt/data/wiki/`
+- Agent reads wiki pages at session start for orientation; edits them when new facts emerge
+- Fully inspectable and editable by the user
 - NOT used for task status or progress (those live in daily summaries)
 
 When the user references something from the past, the assistant retrieves relevant sessions or memory and connects the new conversation to that context — without asking the user to repeat information.
@@ -552,6 +555,56 @@ The `checkin.py` script now integrates with Google Calendar via a service accoun
 
 ---
 
+### 21. LLM Wiki — Inspectable Long-Term Memory (NEW in v2.5)
+
+#### 21.1 Problem
+
+In v2.4, the system used Hindsight for long-term memory — durable facts about the user, preferences, environment, and projects. Hindsight is an agent memory API backed by embedded PostgreSQL with its own LLM costs per operation. For ~30 durable facts, it was overkill: each retention, recall, and consolidation operation cost LLM API credits, the daemon had an idle timeout (300s) that shutdown the service, and rate limits on the LLM model broke the entire memory layer. The facts were not inspectable — only accessible via API.
+
+#### 21.2 Solution
+
+The Hermes built-in `llm-wiki` skill replaces Hindsight as the long-term memory system.
+
+**What it is:** A directory of interlinked Markdown files (`/opt/data/wiki/`) following the Karpathy LLM Wiki pattern. The wiki stores durable facts about Lucas — preferences, environment, projects, conventions — in human-readable, git-backable files.
+
+**How it works:**
+1. `WIKI_PATH=/opt/data/wiki` is set as an environment variable in docker-compose
+2. The wiki is initialized with `SCHEMA.md`, `index.md`, `log.md`, and entity/concept pages
+3. At session start, the agent reads `SCHEMA.md`, `index.md`, and `entities/lucas.md` to orient itself
+4. When new durable facts are discovered, the agent edits or creates wiki pages using `edit_file`/`write_file`
+5. `session_search` and the wiki together provide cross-session context
+
+**Wiki structure:**
+```
+/opt/data/wiki/
+├── SCHEMA.md                     # conventions, tag taxonomy, page thresholds
+├── index.md                      # catalog of all pages
+├── log.md                        # append-only action log
+├── entities/
+│   └── lucas.md                  # profile, ADHD, work context
+├── concepts/
+│   ├── communication-preferences.md
+│   ├── environment.md            # providers, models, tools
+│   └── projects.md               # work projects, repositories
+├── comparisons/
+├── queries/
+└── raw/                          # immutable source material
+```
+
+**Advantages over Hindsight:**
+- Zero LLM cost for memory operations — the wiki IS the memory
+- No idle timeout, no daemon to manage, no PostgreSQL
+- Fully inspectable and editable by Lucas in any text editor
+- Survives restarts without re-initialization
+- Git-backable (can be added to the hermes-config repo)
+
+**What does NOT change:**
+- Daily summaries continue as the task/progress record
+- Focus sessions continue in `focus_sessions.json`
+- The accountability check-in system is unchanged
+
+---
+
 ## Section 2: Technical Implementation
 
 ### Architecture Overview
@@ -561,7 +614,7 @@ Hermes is implemented as a containerized agent (Hermes Agent) running on Docker.
 1. **Live agent** — handles on-demand conversations with the user
 2. **Cron agent** — runs scheduled jobs (check-ins, focus session check-ins) in isolated sessions
 
-The system relies on five core components working together.
+The system relies on seven core components working together.
 
 ---
 
@@ -733,17 +786,25 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 
 ---
 
-### Component 4: Long-Term Memory (Hindsight)
+### Component 4: Long-Term Memory (LLM Wiki)
 
-**What it is:** A semantic memory provider that stores and retrieves facts across sessions. Backed by a local embedded service (PostgreSQL + LLM inference via OpenAI-compatible API).
+**What it is:** An LLM Wiki — a directory of interlinked Markdown files at `/opt/data/wiki/` following the Karpathy LLM Wiki pattern. Replaces Hindsight as of v2.5.
 
 **How it works:**
-- The user profile (preferences, communication style, environment facts) is stored here
-- The system can recall past conversations by searching through daily summary files
-- Reflect capability synthesizes across sessions (used for weekly reports)
-- Retain stores durable facts; recall retrieves them; reflect creates summaries
+- The wiki stores durable facts about the user: preferences, communication style, environment details, project information, recurring conventions
+- At session start, the agent reads `SCHEMA.md`, `index.md`, and relevant entity/concept pages to orient itself
+- New facts are stored by creating or editing Markdown pages via `edit_file`/`write_file`
+- The wiki is powered by the Hermes built-in `llm-wiki` skill (v2.1.0)
+- Path: `/opt/data/wiki/` (configurable via `WIKI_PATH` env var)
 
-**Note:** As of implementation date, Hindsight is not fully operational. Falls back to file-based memory.
+**Advantages over Hindsight (removed in v2.5):**
+- Zero LLM cost for memory operations
+- No daemon to manage (no idle timeout, no PostgreSQL)
+- Fully inspectable and editable by the user
+- Survives restarts without re-initialization
+- Git-backable
+
+**Note:** Hindsight was previously configured in `local_embedded` mode with PostgreSQL. It has been retired in favor of the LLM Wiki. The hindsight config and data remain in `/opt/data/.hindsight/` and `/opt/data/hindsight/config.json` for reference but are no longer used.
 
 ---
 
@@ -762,6 +823,38 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - `daily-status-session` (v2.1.0) — optimized flow for status updates, parallel tool calls
 - `focus-session-handler` (v1.0.0) — focus session lifecycle management
 - `unblock-helper` (v1.0.0) — task initiation paralysis micro-step reduction (NEW in v2.3)
+- `llm-wiki` (v2.1.0) — inspectable Markdown-based long-term memory (NEW in v2.5)
+
+---
+
+### Component 6: Web Search (SearXNG)
+
+**What it is:** A self-hosted, privacy-respecting metasearch engine that aggregates results from 70+ search engines. Free, no API key required.
+
+**Container:** `searxng-core` (docker.io/searxng/searxng:latest)
+**Port:** 8080 (internal, on hermes-net)
+**Config:** `./searxng/core-config/settings.yml` — JSON format enabled for Hermes compatibility
+**Cache:** `searxng-valkey` (valkey/valkey:9-alpine) — Redis-compatible cache
+
+Hermes accesses SearXNG via `SEARXNG_URL=http://searxng-core:8080`. The `web_search` tool is configured with `web.search_backend: "searxng"` in config.yaml.
+
+Added in v2.4, fully operational in v2.5.
+
+---
+
+### Component 7: Web Extract & Crawl (fastCRW)
+
+**What it is:** A Rust-native, single-binary web scraper and crawler (`us/crw`) that implements a Firecrawl-compatible API at `/firecrawl/v2/*`. ~50 MB RAM, sub-second cold start.
+
+**Container:** `crw` (ghcr.io/us/crw:latest)
+**Port:** 3000 (internal, on hermes-net)
+**JS Renderer:** `lightpanda` (lightpanda/browser:latest) — lightweight headless browser for JavaScript-heavy pages, ~64 MB RAM
+
+Hermes accesses fastCRW via `FIRECRAWL_API_URL=http://crw:3000`. The `web_extract` and `web_crawl` tools are configured with `web.extract_backend: "firecrawl"` in config.yaml.
+
+fastCRW handles scraping and crawling. Web search is handled by SearXNG (Component 6). Together they provide a complete, free, self-hosted web toolkit for Hermes.
+
+Added in v2.5.
 
 ---
 
@@ -846,9 +939,17 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - `send_message` — deliver messages to Telegram
 - `web` — web search if needed
 
+**Additional containers (docker-compose):**
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `searxng-core` | searxng/searxng:latest | Web search engine (SearXNG) |
+| `searxng-valkey` | valkey/valkey:9-alpine | Cache for SearXNG |
+| `crw` | ghcr.io/us/crw:latest | Web extract & crawl (fastCRW) |
+| `lightpanda` | lightpanda/browser:latest | JS renderer for fastCRW |
+
 ---
 
-### What's Working (v2.4)
+### What's Working (v2.5)
 
 - Daily status capture with immediate persistence
 - 3x/day scheduled check-ins with follow-up logic
@@ -856,10 +957,12 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - W1 turbo with intention-of-the-day capture and forward referencing in W2/W3
 - Unblock helper skill for ADHD task initiation paralysis
 - Nightly preparation — save first task for tomorrow, reference in next day's W1
-- **Proactive focus suggestions via Google Calendar — detects free blocks ≥60 min and suggests focus sessions**
-- Cross-session memory (Hindsight) for durable facts
+- Proactive focus suggestions via Google Calendar — detects free blocks ≥60 min and suggests focus sessions
+- **LLM Wiki — inspectable Markdown-based long-term memory (replaces Hindsight)**
+- **Self-hosted web search via SearXNG (free, no API keys)**
+- **Self-hosted web extraction via fastCRW / crw (free, Firecrawl-compatible, ~50 MB RAM)**
+- Cross-session memory via session_search + LLM Wiki
 - Suppression of duplicate check-ins when user has already provided status
-- Session search for historical context retrieval
 - File-based state that survives restarts
 - Focus sessions with mid-point and end-of-session check-ins
 - Focus session retry via checkin.py polling (5min guarantee)
@@ -869,37 +972,39 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - Focus session awareness in regular check-ins
 - Git backup for daily summary versioning
 - Wake Agent gate — silent skip for `action: "none"` (no LLM call on weekends/holidays/no-op)
-- Extended cron schedule for re-engagement window (added 18:00 UTC)
+- Extended cron schedule for re-engagement and proactive suggestions
 
 ### Known Limitations
 
-- Long-term memory has no delete mechanism — once stored, a fact persists indefinitely
+- Long-term memory (LLM Wiki) depends on the agent following the `llm-wiki` skill conventions — quality varies with the model's adherence to skill instructions
 - Cron sessions take ~10 minutes to become searchable after execution
 - Check-in suppression logic depends on a daily summary file existing for today — if the user provides a status verbally in the check-in window (without opening the app), it may not be captured
 - The check-in system does not track task-level progress — only status categories and free-text notes
 - Focus sessions are limited to one active session at a time
-- Hindsight memory provider not fully operational — falls back to file-based memory
 - Gamification streaks are basic (consecutive days) — no weighted scoring or category-specific streaks
 - Git backup is best-effort — if git fails silently, no alert is raised
+- fastCRW (crw) uses LightPanda for JS rendering; complex anti-bot pages may require the optional Chrome tier (not included due to resource constraints)
 
 ---
 
-### Files Modified in v2/v2.1/v2.2/v2.3/v2.4
+### Files Modified
 
 | File | Action | Description |
 |------|--------|-------------|
-| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep. v2.4 — Sugestões Proativas de Foco |
+| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep. v2.4 — Sugestões Proativas. v2.5 — LLM Wiki substitui Hindsight |
 | `/opt/data/skills/productivity/focus-session-handler/SKILL.md` | Created | Focus session lifecycle management skill |
-| `/opt/data/skills/productivity/daily-status-session/SKILL.md` | Updated | v2.0.0 — focus session awareness, metrics, milestones. v2.3 — intention extraction, nightly prep |
+| `/opt/data/skills/productivity/daily-status-session/SKILL.md` | Updated | v2.3 — intention extraction, nightly prep, unblock detection. v2.5 — LLM Wiki orientation on session start |
 | `/opt/data/skills/productivity/unblock-helper/SKILL.md` | Created (v2.3) | Task initiation paralysis — micro-step barrier reduction |
-| `/opt/data/.cron/responsibility_partner/focus_sessions.json` | Created | Focus session state file |
-| `/opt/data/.cron/responsibility_partner/.git/` | Created | Git repository for daily summary versioning |
-| `/opt/data/.cron/responsibility_partner/.gitignore` | Created | Excludes transient state files from git |
+| `/opt/data/skills/research/llm-wiki/SKILL.md` | Enabled (v2.5) | Inspectable Markdown long-term memory (built-in Hermes skill) |
+| `/opt/data/wiki/` | Created (v2.5) | LLM Wiki directory — entities, concepts, schema |
+| `/opt/data/.hindsight/` | Retired (v2.5) | Hindsight data kept for reference, no longer used |
 | `/opt/data/scripts/checkin.py` | Updated | v5 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions |
-| `/opt/data/cron/jobs.json` | Updated | Prompt supports send_escalation. v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
-| `/opt/hermes/cron/scheduler.py` | Updated | Added `target_model` to `resolve_runtime_provider` call (fixes api_mode mismatch) |
-| `docker-compose.yaml` | Updated (v2.4) | Added `GOOGLE_SERVICE_ACCOUNT_PATH` and `GOOGLE_CALENDAR_ID` env vars |
-| `deploy.sh` | Created (v2.3) | Automated deployment script for copying config files to container |
+| `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
+| `/opt/data/config.yaml` | Updated (v2.4-v2.5) | Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH |
+| `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL |
+| `deploy.sh` | Created (v2.3) | Automated deployment script |
+| `searxng/core-config/settings.yml` | Created (v2.5) | SearXNG configuration with JSON format enabled |
+| `.env.example` | Updated (v2.5) | Added GOOGLE_SERVICE_ACCOUNT_PATH, GOOGLE_CALENDAR_ID, FIRECRAWL_API_URL |
 
 ---
 
@@ -937,5 +1042,5 @@ The following improvements were identified during the v2 design process. They ar
 
 ---
 
-*Document version: 2.4 — based on Hermes Accountability Partner v2.4 implementation for Lucas Alcantara.*
+*Document version: 2.5 — based on Hermes Accountability Partner v2.5 implementation for Lucas Alcantara.*
 *Date: 2026-07-07*
