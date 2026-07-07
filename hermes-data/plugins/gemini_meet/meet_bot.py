@@ -286,11 +286,11 @@ def _start_realtime_speaker(
     try:
         import sys
         import os
-        plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
         if plugin_dir not in sys.path:
             sys.path.insert(0, plugin_dir)
-        from hermes_plugins.gemini_meet.gemini_live import GeminiLiveSession as RealtimeSession
-        from hermes_plugins.gemini_meet.realtime_speaker import RealtimeSpeaker
+        from gemini_live import GeminiLiveSession as RealtimeSession
+        from realtime_speaker import RealtimeSpeaker
     except Exception as e:
         state.set(error=f"realtime import failed: {e}")
         return
@@ -456,10 +456,10 @@ def run_bot() -> int:  # noqa: C901 — orchestration, explicit branches
     duration_s = _parse_duration(os.environ.get("HERMES_MEET_DURATION", ""))
     # v2: optional realtime mode. Enabled when HERMES_MEET_MODE=realtime.
     mode = os.environ.get("HERMES_MEET_MODE", "transcribe").strip().lower()
-    realtime_model = os.environ.get("HERMES_MEET_REALTIME_MODEL", "gpt-realtime")
-    realtime_voice = os.environ.get("HERMES_MEET_REALTIME_VOICE", "alloy")
+    realtime_model = os.environ.get("HERMES_MEET_REALTIME_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
+    realtime_voice = os.environ.get("HERMES_MEET_REALTIME_VOICE", "Puck")
     realtime_instructions = os.environ.get("HERMES_MEET_REALTIME_INSTRUCTIONS", "")
-    realtime_api_key = os.environ.get("HERMES_MEET_REALTIME_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    realtime_api_key = os.environ.get("HERMES_MEET_REALTIME_KEY") or os.environ.get("GEMINI_API_KEY", "")
 
     if not url or not _is_safe_meet_url(url):
         sys.stderr.write(
@@ -500,11 +500,14 @@ def run_bot() -> int:  # noqa: C901 — orchestration, explicit branches
     }
     if rt["enabled"]:
         if not realtime_api_key:
-            state.set(error="realtime mode requested but no API key in HERMES_MEET_REALTIME_KEY/OPENAI_API_KEY — falling back to transcribe")
+            state.set(error="realtime mode requested but no API key in HERMES_MEET_REALTIME_KEY/GEMINI_API_KEY — falling back to transcribe")
             rt["enabled"] = False
         else:
             try:
-                from hermes_plugins.gemini_meet.audio_bridge import AudioBridge
+                plugin_dir = os.path.dirname(os.path.abspath(__file__))
+                if plugin_dir not in sys.path:
+                    sys.path.insert(0, plugin_dir)
+                from audio_bridge import AudioBridge
                 bridge = AudioBridge()
                 rt["bridge_info"] = bridge.setup()
                 rt["bridge"] = bridge

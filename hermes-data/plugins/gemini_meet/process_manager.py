@@ -161,7 +161,7 @@ def start(
     log_fh = open(log_path, "ab", buffering=0)
     try:
         proc = subprocess.Popen(
-            [sys.executable, "-m", "plugins.gemini_meet.meet_bot"],
+            [sys.executable, str(Path(__file__).parent / "meet_bot.py")],
             stdin=subprocess.DEVNULL,
             stdout=log_fh,
             stderr=subprocess.STDOUT,

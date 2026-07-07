@@ -105,8 +105,20 @@ def handle_gemini_meet_join(args: dict, **_kw: Any) -> str:
     guest_name = args.get("guest_name", "Hermes")
     duration = args.get("duration", "30m")
 
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
+    voice = os.environ.get("GEMINI_VOICE", "Puck")
+
     try:
-        result = pm.start(url, guest_name=guest_name, duration=duration, mode="realtime")
+        result = pm.start(
+            url,
+            guest_name=guest_name,
+            duration=duration,
+            mode="realtime",
+            realtime_api_key=api_key,
+            realtime_model=model,
+            realtime_voice=voice,
+        )
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e)})
