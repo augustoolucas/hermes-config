@@ -1,4 +1,4 @@
-# Hermes — Accountability Partner v2.3 Spec
+# Hermes — Accountability Partner v2.4 Spec
 
 ---
 
@@ -11,11 +11,13 @@ Hermes is an accountability partner for a developer (Lucas). It operates in two 
 1. **Live sessions** — on-demand interaction when Lucas initiates a conversation
 2. **Scheduled check-ins** — automated prompts at 3 windows during workdays
 
-Version 2 adds three major capabilities on top of v1:
+Version 2 adds five major capabilities on top of v1:
 
 1. **Focus Sessions** — declared periods of concentrated work with dedicated check-ins
 2. **Escalation** — mandatory end-of-day status capture with multi-level follow-up
 3. **Gamification** — subtle streak and milestone tracking for motivation
+4. **ADHD-Specific Features** (v2.3) — re-engagement nudges, intention-of-the-day, unblock helper for task paralysis, nightly preparation
+5. **Calendar-Aware Proactive Suggestions** (v2.4) — Google Calendar integration detects free blocks and suggests focus sessions
 
 The assistant does not execute tasks. It monitors, tracks, reminds, and maintains cross-session memory.
 
@@ -322,7 +324,7 @@ The 18:00 UTC hour covers 15:00–15:55 BRT, enabling the re-engagement window. 
 
 Tasks can stay in `em andamento` (in progress) for days without updates. The user may forget about them or lose momentum. In v1, stale tasks were only surfaced when the check-in system happened to reference them — there was no proactive detection.
 
-#### 6.2 Solution
+#### 11.2 Solution
 
 The `checkin.py` script now automatically detects tasks that have been in `em andamento` for more than 3 days without an update to the `since` field.
 
@@ -346,13 +348,13 @@ The `checkin.py` script now automatically detects tasks that have been in `em an
 
 ---
 
-### 7. Escalation — End-of-Day Mandatory Capture (NEW in v2)
+### 12. Escalation — End-of-Day Mandatory Capture (NEW in v2)
 
-#### 6.1 Problem
+#### 12.1 Problem
 
 In v1, if the user did not respond to the W3 check-in (16:30–17:30), the system marked `followup_action: "expired"` and generated a summary at 18:30 with whatever it had. There was no escalation — the user could go the entire day without reporting.
 
-#### 6.2 Solution
+#### 12.2 Solution
 
 A multi-level escalation ensures every day has a status capture:
 
@@ -363,13 +365,13 @@ A multi-level escalation ensures every day has a status capture:
 
 The daily summary at 18:30 always captures whatever was collected — with or without user confirmation.
 
-#### 6.3 Suppression
+#### 12.3 Suppression
 
 If the user has already interacted during the day (daily summary exists with real content), escalation is suppressed. The system only escalates when there is genuinely no status for the day.
 
 ---
 
-### 8. Cross-Session Memory
+### 13. Cross-Session Memory
 
 The assistant maintains two types of memory:
 
@@ -387,7 +389,7 @@ When the user references something from the past, the assistant retrieves releva
 
 ---
 
-### 9. Git Backup for Daily Summaries (NEW in v2.1)
+### 14. Git Backup for Daily Summaries (NEW in v2.1)
 
 All daily summary files are version-controlled in a local git repository at `/opt/data/.cron/responsibility_partner/.git/`.
 
@@ -410,9 +412,9 @@ All daily summary files are version-controlled in a local git repository at `/op
 
 ---
 
-### 10. Gamification (NEW in v2)
+### 15. Gamification (NEW in v2)
 
-#### 7.1 Metrics Tracked
+#### 15.1 Metrics Tracked
 
 Each daily summary includes a `metrics` section in the YAML frontmatter:
 
@@ -426,13 +428,13 @@ metrics:
   current_streak: 5
 ```
 
-#### 7.2 Streak Calculation
+#### 15.2 Streak Calculation
 
 **Streak of days:** consecutive days with a daily summary containing at least 1 task or real summary text. Generic entries like "Sem atividade" do not count.
 
 **Focus streak:** consecutive days with at least 1 focus session completed.
 
-#### 7.3 Milestones
+#### 15.3 Milestones
 
 Milestones are commented on subtly (1 line) by the assistant when relevant:
 
@@ -444,7 +446,7 @@ Milestones are commented on subtly (1 line) by the assistant when relevant:
 | 10 tasks completed (total) | When the 10th is marked done |
 | First focus session ever | At declaration time |
 
-#### 7.4 Rules
+#### 15.4 Rules
 
 - Only mention milestones once (first time reached)
 - Never mention streak breaks or negative trends
@@ -454,7 +456,7 @@ Milestones are commented on subtly (1 line) by the assistant when relevant:
 
 ---
 
-### 11. Communication Style
+### 16. Communication Style
 
 The assistant communicates in Portuguese (Brazil), with the following characteristics:
 
@@ -472,7 +474,7 @@ The assistant communicates in Portuguese (Brazil), with the following characteri
 
 ---
 
-### 12. Session Close
+### 17. Session Close
 
 When a conversation ends (or the user goes silent), the assistant:
 
@@ -482,7 +484,7 @@ When a conversation ends (or the user goes silent), the assistant:
 
 ---
 
-### 13. Handling Infrastructure Issues
+### 18. Handling Infrastructure Issues
 
 When the assistant encounters its own infrastructure issues (cron failures, memory provider errors, rate limits), it handles them without involving the user. These are internal problems. The user is never told about backend failures unless they directly impact the user's experience (e.g., a check-in not arriving).
 
@@ -490,7 +492,7 @@ Before closing the conversation, the assistant ensures it has an accurate, up-to
 
 ---
 
-### 14. Accountability Logic
+### 19. Accountability Logic
 
 The assistant operates on a simple principle: **nothing falls through the cracks**.
 
@@ -500,6 +502,53 @@ The assistant operates on a simple principle: **nothing falls through the cracks
 - If the user goes quiet, the system detects the silence and prompts for a status check
 - Focus sessions are tracked until completion, cancellation, or expiry
 - End-of-day escalation ensures no day goes without a status capture
+
+---
+
+### 20. Proactive Focus Suggestions via Google Calendar (NEW in v2.4)
+
+#### 20.1 Problem
+
+With ADHD, Lucas often has free time blocks between meetings but doesn't realize it — or doesn't think to declare a focus session proactively. The system had no awareness of his calendar availability.
+
+#### 20.2 Solution
+
+The `checkin.py` script now integrates with Google Calendar via a service account (read-only). It detects free blocks ≥ 60 minutes between 09h–18h BRT and proactively suggests focus sessions.
+
+**How it works:**
+1. `checkin.py` calls Google Calendar API every 5 minutes
+2. `get_free_windows()` calculates unoccupied blocks between 09h–18h BRT
+3. `check_proactive_suggestion()` triggers if:
+   - A free window starts in the next 15 minutes
+   - No active focus session
+   - User hasn't responded to any check-in today
+   - Cooldown of 1 hour since last suggestion
+4. Output: `action: "suggest_focus"` with message like: "Tem 90min livres até 15h. Sugestão: [tarefa pendente]. Quer focar?"
+
+**Dependencies:**
+- `google-auth` and `google-api-python-client` libraries in the container
+- Service account JSON at `/opt/data/google-service-account.json`
+- Environment variables: `GOOGLE_SERVICE_ACCOUNT_PATH`, `GOOGLE_CALENDAR_ID`
+
+**Fallback:** If Google libs are not installed or service account is missing, integration fails silently — regular check-ins continue normally.
+
+**Rules:**
+- Suggests max 1x per hour (cooldown)
+- Does not suggest during active focus sessions
+- Does not suggest if user already responded to any check-in today
+- Only between 09h–18h BRT
+- Minimum free block: 60 minutes
+- The suggestion is an invitation, not a demand. If Lucas says no, life goes on.
+
+**New state field:** `proactive_suggestion_last` (epoch) — tracks cooldown between suggestions.
+
+**New cron action:** `suggest_focus` — delivers the proactive message to Telegram, suppressed if user already interacted today.
+
+**New environment variables:**
+| Variable | Purpose |
+|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_PATH` | Path to service account JSON key (default: `/opt/data/google-service-account.json`) |
+| `GOOGLE_CALENDAR_ID` | Email of the calendar to query (e.g., `lucasaugusto096@gmail.com`) |
 
 ---
 
@@ -559,7 +608,7 @@ metrics:
 
 ### Component 2: Check-in Scheduler
 
-**What it is:** A Python script (`checkin.py`, v3) that runs every 5 minutes via cron. It determines whether a check-in, follow-up, escalation, or summary should be sent.
+**What it is:** A Python script (`checkin.py`, v5) that runs every 5 minutes via cron. It determines whether a check-in, follow-up, escalation, or summary should be sent.
 
 **How it works:**
 - Three fixed windows per weekday (morning, midday, evening) in BRT timezone
@@ -570,8 +619,11 @@ metrics:
 - `send_checkin` — deliver check-in message (immutable, from script)
 - `send_followup` — deliver follow-up for unanswered check-in
 - `send_escalation` — deliver escalation for unanswered W3 (NEW in v2)
+- `send_reengagement` — deliver re-engagement message at ~15h BRT (NEW in v2.3)
+- `suggest_focus` — suggest focus session based on calendar free blocks (NEW in v2.4)
 - `generate_daily_summary` — generate end-of-day summary with metrics
 - `generate_weekly_report` — generate weekly report
+- `focus_session_checkin` — deliver focus session retry check-in
 - `none` — silent, no action needed
 
 **Windows (BRT):**
@@ -612,7 +664,8 @@ W3 check-in → no response → 20min → follow-up → no response → 20min �
       "marker": "RESP-W1-YYYY-MM-DD-NNNN"
     }
   },
-  "weekly_report_sent": {}
+  "weekly_report_sent": {},
+  "proactive_suggestion_last": null
 }
 ```
 
@@ -706,8 +759,9 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - Task status uses four categories (em andamento, pendente, em espera, concluído)
 
 **Skills used:**
-- `daily-status-session` (v2.0.0) — optimized flow for status updates, parallel tool calls
+- `daily-status-session` (v2.1.0) — optimized flow for status updates, parallel tool calls
 - `focus-session-handler` (v1.0.0) — focus session lifecycle management
+- `unblock-helper` (v1.0.0) — task initiation paralysis micro-step reduction (NEW in v2.3)
 
 ---
 
@@ -775,14 +829,14 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 **Volume mount:** `~/.hermes` → `/opt/data`
 **Model:** minimax-m2.7 via opencode-go
 **Platform:** Telegram only
-**Cron schedule:** `*/5 11-15,19-21 * * 1-5` (UTC) = `*/5 08-12,16-18 * * 1-5` (BRT)
+**Cron schedule:** `*/5 11-15,18-21 * * 1-5` (UTC) = `*/5 08-12,16-18 * * 1-5` (BRT)
 **Memory provider:** Hindsight (local_embedded)
 **SOUL.md:** `/opt/data/SOUL.md`
 
 **Cron Jobs:**
 | Job | Schedule | Purpose |
 |-----|----------|---------|
-| `c9e31c8f7b6a` | `*/5 11-15,19-21 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation |
+| `c9e31c8f7b6a` | `*/5 11-15,18-21 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation + re-engagement + proactive focus suggestions |
 | `c102a47935ce` | `0 21 * * 5` | Weekly report (Friday 18h BRT) |
 | Focus session one-shots | Dynamic | Created per focus session declaration |
 
@@ -794,14 +848,15 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 
 ---
 
-### What's Working (v2.3)
+### What's Working (v2.4)
 
 - Daily status capture with immediate persistence
 - 3x/day scheduled check-ins with follow-up logic
-- **Re-engagement check-in (~15h BRT) when no check-in was responded to during the day**
-- **W1 turbo with intention-of-the-day capture and forward referencing in W2/W3**
-- **Unblock helper skill for ADHD task initiation paralysis**
-- **Nightly preparation — save first task for tomorrow, reference in next day's W1**
+- Re-engagement check-in (~15h BRT) when no check-in was responded to during the day
+- W1 turbo with intention-of-the-day capture and forward referencing in W2/W3
+- Unblock helper skill for ADHD task initiation paralysis
+- Nightly preparation — save first task for tomorrow, reference in next day's W1
+- **Proactive focus suggestions via Google Calendar — detects free blocks ≥60 min and suggests focus sessions**
 - Cross-session memory (Hindsight) for durable facts
 - Suppression of duplicate check-ins when user has already provided status
 - Session search for historical context retrieval
@@ -814,7 +869,7 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - Focus session awareness in regular check-ins
 - Git backup for daily summary versioning
 - Wake Agent gate — silent skip for `action: "none"` (no LLM call on weekends/holidays/no-op)
-- **Extended cron schedule for re-engagement window (added 18:00 UTC)**
+- Extended cron schedule for re-engagement window (added 18:00 UTC)
 
 ### Known Limitations
 
@@ -829,20 +884,22 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 
 ---
 
-### Files Modified in v2/v2.1/v2.2/v2.3
+### Files Modified in v2/v2.1/v2.2/v2.3/v2.4
 
 | File | Action | Description |
 |------|--------|-------------|
-| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep |
+| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep. v2.4 — Sugestões Proativas de Foco |
 | `/opt/data/skills/productivity/focus-session-handler/SKILL.md` | Created | Focus session lifecycle management skill |
 | `/opt/data/skills/productivity/daily-status-session/SKILL.md` | Updated | v2.0.0 — focus session awareness, metrics, milestones. v2.3 — intention extraction, nightly prep |
 | `/opt/data/skills/productivity/unblock-helper/SKILL.md` | Created (v2.3) | Task initiation paralysis — micro-step barrier reduction |
 | `/opt/data/.cron/responsibility_partner/focus_sessions.json` | Created | Focus session state file |
 | `/opt/data/.cron/responsibility_partner/.git/` | Created | Git repository for daily summary versioning |
 | `/opt/data/.cron/responsibility_partner/.gitignore` | Created | Excludes transient state files from git |
-| `/opt/data/scripts/checkin.py` | Updated | v4 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep |
-| `/opt/data/cron/jobs.json` | Updated | Prompt supports send_escalation. v2.3 — send_reengagement section, extended schedule |
+| `/opt/data/scripts/checkin.py` | Updated | v5 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions |
+| `/opt/data/cron/jobs.json` | Updated | Prompt supports send_escalation. v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
 | `/opt/hermes/cron/scheduler.py` | Updated | Added `target_model` to `resolve_runtime_provider` call (fixes api_mode mismatch) |
+| `docker-compose.yaml` | Updated (v2.4) | Added `GOOGLE_SERVICE_ACCOUNT_PATH` and `GOOGLE_CALENDAR_ID` env vars |
+| `deploy.sh` | Created (v2.3) | Automated deployment script for copying config files to container |
 
 ---
 
@@ -854,9 +911,7 @@ The following improvements were identified during the v2 design process. They ar
 
 1. **Streak with Trend Analysis** — Beyond the current streak counter, calculate whether the user's engagement is improving, stable, or declining (comparison with previous week's average). Useful for the weekly report.
 
-2. **Calendar Integration** — Connect Google Calendar to adjust check-in behavior on days with meetings. If the user has a meeting at 10am, W2 could reference it: "Reunião às 10h — o que precisa preparar?"
-
-3. **Weekly Pattern Report** — Analyze daily summaries from the past week and identify:
+2. **Weekly Pattern Report** — Analyze daily summaries from the past week and identify:
    - Most productive hours (based on when tasks are marked done)
    - Distraction frequency (tasks started but not completed)
    - Tasks that never get started (always "pendente")
@@ -864,23 +919,23 @@ The following improvements were identified during the v2 design process. They ar
 
 ### Medium Priority
 
-4. **Multiple Focus Sessions** — Support more than one active focus session at a time, with naming to differentiate. Useful for days with distinct work blocks.
+3. **Multiple Focus Sessions** — Support more than one active focus session at a time, with naming to differentiate. Useful for days with distinct work blocks.
 
-5. **Automatic Daily Summary Backup Verification** — Periodic check that git repo is healthy and all daily summaries are committed. Alert if backup is stale.
+4. **Automatic Daily Summary Backup Verification** — Periodic check that git repo is healthy and all daily summaries are committed. Alert if backup is stale.
 
-6. **Task Progress Tracking** — Beyond status categories, track percentage completion or subtask breakdown. Useful for large tasks that span multiple days.
+5. **Task Progress Tracking** — Beyond status categories, track percentage completion or subtask breakdown. Useful for large tasks that span multiple days.
 
 ### Low Priority
 
-7. **Voice Check-in** — Use Hermes TTS (Edge TTS, free) to deliver check-ins as voice messages on Telegram. More natural for quick status updates.
+6. **Voice Check-in** — Use Hermes TTS (Edge TTS, free) to deliver check-ins as voice messages on Telegram. More natural for quick status updates.
 
-8. **Dashboard Web** — Visual dashboard with streaks, productivity graphs, focus session history. Hermes has a built-in web dashboard feature.
+7. **Dashboard Web** — Visual dashboard with streaks, productivity graphs, focus session history. Hermes has a built-in web dashboard feature.
 
-9. **Jira Integration** — Sync work tasks from Jira with daily summaries. Requires Jira API access (not currently available).
+8. **Jira Integration** — Sync work tasks from Jira with daily summaries. Requires Jira API access (not currently available).
 
-10. **ML-based Distraction Prediction** — Use historical patterns to predict when the user is likely to get distracted and intervene proactively. Requires significant data accumulation first.
+9. **ML-based Distraction Prediction** — Use historical patterns to predict when the user is likely to get distracted and intervene proactively. Requires significant data accumulation first.
 
 ---
 
-*Document version: 2.3 — based on Hermes Accountability Partner v2.3 implementation for Lucas Alcantara.*
-*Date: 2026-07-06*
+*Document version: 2.4 — based on Hermes Accountability Partner v2.4 implementation for Lucas Alcantara.*
+*Date: 2026-07-07*
