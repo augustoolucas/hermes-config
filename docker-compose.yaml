@@ -3,7 +3,7 @@ services:
     image: nousresearch/hermes-agent:latest
     container_name: hermes
     restart: unless-stopped
-    command: gateway run
+    command: hermes -p accountability gateway run
     ports:
       - "8642:8642"
       - "9119:9119"
