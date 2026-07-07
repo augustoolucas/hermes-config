@@ -18,8 +18,9 @@ if [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
     exit 1
 fi
 
-echo "=== Substituindo placeholder no cron/jobs.json ==="
-sed -i "s/TELEGRAM_CHAT_ID/${TELEGRAM_CHAT_ID}/g" hermes-data/cron/jobs.json
+echo "=== Substituindo placeholder e injetando no container ==="
+sed "s/TELEGRAM_CHAT_ID/${TELEGRAM_CHAT_ID}/g" hermes-data/cron/jobs.json | \
+    docker exec -i hermes tee /opt/data/cron/jobs.json > /dev/null
 
 echo "=== Criando diretório do novo skill ==="
 docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
@@ -27,7 +28,6 @@ docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
 echo "=== Copiando arquivos para o container ==="
 docker cp hermes-data/SOUL.md                         hermes:/opt/data/SOUL.md
 docker cp hermes-data/scripts/checkin.py               hermes:/opt/data/scripts/checkin.py
-docker cp hermes-data/cron/jobs.json                   hermes:/opt/data/cron/jobs.json
 docker cp hermes-data/skills/productivity/daily-status-session/SKILL.md \
     hermes:/opt/data/skills/productivity/daily-status-session/SKILL.md
 docker cp hermes-data/skills/productivity/focus-session-handler/SKILL.md \
