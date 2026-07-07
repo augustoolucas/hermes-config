@@ -24,7 +24,6 @@ services:
       - FIRECRAWL_API_URL=http://crw:3000
       - WIKI_PATH=/opt/data/profiles/accountability/wiki
       - CHECKIN_DATA_DIR=/opt/data/profiles/accountability/.cron/responsibility_partner
-      - HERMES_MEET_REALTIME_PROVIDER=gemini
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PULSE_RUNTIME_PATH=/tmp/hermes-pulse
     deploy:
