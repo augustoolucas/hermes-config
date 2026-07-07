@@ -22,6 +22,9 @@ echo "=== Substituindo placeholder e injetando no container ==="
 sed "s/TELEGRAM_CHAT_ID/${TELEGRAM_CHAT_ID}/g" hermes-data/cron/jobs.json | \
     docker exec -i hermes tee /opt/data/cron/jobs.json > /dev/null
 
+echo "=== Sincronizando cron/jobs.json para o perfil accountability ==="
+docker exec hermes cp /opt/data/cron/jobs.json /opt/data/profiles/accountability/cron/jobs.json
+
 echo "=== Criando diretório do novo skill ==="
 docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
 
