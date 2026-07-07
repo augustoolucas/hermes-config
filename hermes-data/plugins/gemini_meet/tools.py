@@ -96,7 +96,7 @@ def _active_meeting() -> Path | None:
 
 # ── Handlers ────────────────────────────────────────────────────────────
 
-def handle_gemini_meet_join(args: dict) -> str:
+def handle_gemini_meet_join(args: dict, **_kw: Any) -> str:
     url = args.get("url", "")
     if not url or "meet.google.com" not in url:
         return json.dumps({"error": "Invalid Google Meet URL"})
@@ -108,13 +108,13 @@ def handle_gemini_meet_join(args: dict) -> str:
     duration = args.get("duration", "30m")
 
     try:
-        result = pm.start(url, guest_name=guest_name, duration=duration, realtime=True)
+        result = pm.start(url, guest_name=guest_name, duration=duration, mode="realtime")
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 
-def handle_gemini_meet_status(_args: dict) -> str:
+def handle_gemini_meet_status(_args: dict, **_kw: Any) -> str:
     meeting = _active_meeting()
     if not meeting:
         return json.dumps({"in_call": False, "message": "No active meeting"})
@@ -127,7 +127,7 @@ def handle_gemini_meet_status(_args: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def handle_gemini_meet_transcript(args: dict) -> str:
+def handle_gemini_meet_transcript(args: dict, **_kw: Any) -> str:
     meeting = _active_meeting()
     if not meeting:
         return json.dumps({"error": "No active meeting"})
@@ -146,7 +146,7 @@ def handle_gemini_meet_transcript(args: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def handle_gemini_meet_say(args: dict) -> str:
+def handle_gemini_meet_say(args: dict, **_kw: Any) -> str:
     text = args.get("text", "").strip()
     if not text:
         return json.dumps({"error": "No text provided"})
@@ -166,7 +166,7 @@ def handle_gemini_meet_say(args: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def handle_gemini_meet_leave(_args: dict) -> str:
+def handle_gemini_meet_leave(_args: dict, **_kw: Any) -> str:
     meeting = _active_meeting()
     if not meeting:
         return json.dumps({"error": "No active meeting"})
