@@ -26,6 +26,7 @@ services:
       - CHECKIN_DATA_DIR=/opt/data/profiles/accountability/.cron/responsibility_partner
       - HERMES_MEET_REALTIME_PROVIDER=gemini
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PULSE_RUNTIME_PATH=/tmp/hermes-pulse
     deploy:
       resources:
         limits:

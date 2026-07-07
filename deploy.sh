@@ -45,6 +45,9 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
 docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
+echo "=== Criando diretórios dos skills ==="
+docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
+
 echo "=== Copiando plugin gemini_meet ==="
 docker exec hermes mkdir -p /opt/data/plugins/gemini_meet
 docker cp hermes-data/plugins/gemini_meet/plugin.yaml \
@@ -87,5 +90,50 @@ fi
 
 echo "=== Reiniciando container ==="
 docker restart hermes
+
+echo "=== Configurando áudio (PulseAudio + ALSA bridge) ==="
+sleep 3
+
+# ALSA → PulseAudio bridge (sobrevive apenas até recriação do container)
+docker exec hermes bash -c '
+cat > /etc/asound.conf << '"'"'ASOUND'"'"'
+pcm.!default {
+    type pulse
+    hint { show on description "Default ALSA Output (PulseAudio)" }
+}
+pcm.pulse { type pulse }
+ctl.!default { type pulse }
+ASOUND
+echo "asound.conf created"
+'
+
+# PulseAudio config persistent (no volume /opt/data/.config/pulse/)
+docker exec -u hermes hermes bash -c '
+mkdir -p /opt/data/.config/pulse /tmp/hermes-pulse
+chmod 700 /tmp/hermes-pulse
+
+cat > /opt/data/.config/pulse/daemon.conf << "PULSE"
+exit-idle-time = -1
+PULSE
+
+cat > /opt/data/.config/pulse/default.pa << "PULSE"
+load-module module-null-sink sink_name=auto_null
+load-module module-native-protocol-unix auth-anonymous=1
+PULSE
+
+# Kill stale
+pkill -u hermes pulseaudio 2>/dev/null || true
+sleep 1
+
+# Start
+pulseaudio --start --exit-idle-time=-1
+sleep 1
+
+if pulseaudio --check 2>/dev/null; then
+    echo "PulseAudio ready — realtime voice enabled"
+else
+    echo "PulseAudio unavailable — bot will fall back to transcribe mode"
+fi
+'
 
 echo -e "${GREEN}Deploy concluído.${NC}"
