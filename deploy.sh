@@ -94,6 +94,11 @@ docker restart hermes
 echo "=== Configurando áudio (PulseAudio + ALSA bridge) ==="
 sleep 3
 
+# Instalar dependências Python que não vêm na imagem
+echo "=== Instalando dependências Python ==="
+docker exec hermes /opt/hermes/.venv/bin/python3 -m ensurepip --upgrade &> /dev/null
+docker exec hermes /opt/hermes/.venv/bin/python3 -m pip install playwright &> /dev/null
+
 # ALSA → PulseAudio bridge (sobrevive apenas até recriação do container)
 docker exec hermes bash -c '
 cat > /etc/asound.conf << '"'"'ASOUND'"'"'
