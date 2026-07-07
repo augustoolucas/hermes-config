@@ -46,21 +46,28 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
     hermes:/opt/data/profiles/accountability/skills/productivity/unblock-helper/SKILL.md
 
 echo "=== Copiando plugin gemini_meet ==="
-docker exec hermes mkdir -p /opt/data/profiles/accountability/plugins/gemini_meet
+docker exec hermes mkdir -p /opt/data/plugins/gemini_meet
 docker cp hermes-data/plugins/gemini_meet/plugin.yaml \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/plugin.yaml
+    hermes:/opt/data/plugins/gemini_meet/plugin.yaml
 docker cp hermes-data/plugins/gemini_meet/__init__.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/__init__.py
+    hermes:/opt/data/plugins/gemini_meet/__init__.py
 docker cp hermes-data/plugins/gemini_meet/tools.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/tools.py
+    hermes:/opt/data/plugins/gemini_meet/tools.py
 docker cp hermes-data/plugins/gemini_meet/gemini_live.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/gemini_live.py
+    hermes:/opt/data/plugins/gemini_meet/gemini_live.py
+docker cp hermes-data/plugins/gemini_meet/realtime_speaker.py \
+    hermes:/opt/data/plugins/gemini_meet/realtime_speaker.py
 docker cp hermes-data/plugins/gemini_meet/meet_bot.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/meet_bot.py
+    hermes:/opt/data/plugins/gemini_meet/meet_bot.py
 docker cp hermes-data/plugins/gemini_meet/process_manager.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/process_manager.py
+    hermes:/opt/data/plugins/gemini_meet/process_manager.py
 docker cp hermes-data/plugins/gemini_meet/audio_bridge.py \
-    hermes:/opt/data/profiles/accountability/plugins/gemini_meet/audio_bridge.py
+    hermes:/opt/data/plugins/gemini_meet/audio_bridge.py
+
+echo "=== Symlink no accountability profile ==="
+docker exec hermes mkdir -p /opt/data/profiles/accountability/plugins
+docker exec hermes rm -rf /opt/data/profiles/accountability/plugins/gemini_meet 2>/dev/null
+docker exec hermes ln -sf /opt/data/plugins/gemini_meet /opt/data/profiles/accountability/plugins/gemini_meet
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 
