@@ -12,6 +12,7 @@ services:
     networks:
       - hermes-net
     environment:
+      - TZ=America/Sao_Paulo
       - HERMES_DASHBOARD=true
       - HERMES_DASHBOARD_HOST=0.0.0.0
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
