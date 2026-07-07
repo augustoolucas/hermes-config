@@ -31,6 +31,13 @@ GEMINI_MEET_JOIN_SCHEMA: dict[str, Any] = {
             "description": "Maximum meeting duration (e.g. '30m', '1h')",
             "default": "30m",
         },
+        "auth_state": {
+            "type": "string",
+            "description": "Path to a Playwright storageState JSON file with Google auth session. "
+            "When set, the bot joins authenticated (avoids guest-admission blocks). "
+            "Generate once via `hermes meet auth` or by logging into Google in a headed browser "
+            "and exporting context.storage_state().",
+        },
     },
     "required": ["url"],
 }
@@ -125,6 +132,10 @@ def handle_gemini_meet_join(args: dict, **_kw: Any) -> str:
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
     voice = os.environ.get("GEMINI_VOICE", "Puck")
 
+    auth_state = args.get("auth_state", "")
+    if auth_state and not os.path.isfile(auth_state):
+        return json.dumps({"error": f"auth_state file not found: {auth_state}"})
+
     try:
         result = pm.start(
             url,
@@ -134,6 +145,7 @@ def handle_gemini_meet_join(args: dict, **_kw: Any) -> str:
             realtime_api_key=api_key,
             realtime_model=model,
             realtime_voice=voice,
+            auth_state=auth_state or None,
         )
         return json.dumps(result)
     except Exception as e:
