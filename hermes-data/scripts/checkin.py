@@ -138,8 +138,9 @@ FOCUS_RETRY_WINDOW_SEC = 900  # 15 min para retry de focus session check-in
 # Google Calendar
 GOOGLE_SERVICE_ACCOUNT_PATH = os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH", "/opt/data/google-service-account.json")
 GOOGLE_CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "")
-PROACTIVE_COOLDOWN_SEC = 3600  # 1h entre sugestões proativas de foco
-PROACTIVE_WINDOW_START = 9   # 09:00 BRT
+GOOGLE_CALENDAR_IDS = [cid.strip() for cid in GOOGLE_CALENDAR_ID.split(",") if cid.strip()]
+PROACTIVE_COOLDOWN_SEC = 3600
+PROACTIVE_WINDOW_START = 9
 PROACTIVE_WINDOW_END = 18    # 18:00 BRT
 PROACTIVE_MIN_DURATION = 60  # mínimo 60 min livres para sugerir foco
 
@@ -694,7 +695,7 @@ def _get_calendar_service():
 def get_free_windows(date_brt):
     """Consulta Google Calendar e retorna blocos livres >= 60min entre 09h-18h BRT.
     Retorna lista de (start_epoch, end_epoch, duration_minutes)."""
-    if not GOOGLE_CALENDAR_ID:
+    if not GOOGLE_CALENDAR_IDS:
         return []
 
     service = _get_calendar_service()
@@ -708,27 +709,31 @@ def get_free_windows(date_brt):
         time_min = day_start.isoformat()
         time_max = day_end.isoformat()
 
-        events_result = (
-            service.events()
-            .list(
-                calendarId=GOOGLE_CALENDAR_ID,
-                timeMin=time_min,
-                timeMax=time_max,
-                singleEvents=True,
-                orderBy="startTime",
-            )
-            .execute()
-        )
         busy = []
-        for event in events_result.get("items", []):
-            start = event["start"].get("dateTime", event["start"].get("date"))
-            end = event["end"].get("dateTime", event["end"].get("date"))
-            if "T" not in start:
-                continue  # eventos all-day, ignorar
-            busy.append((
-                int(datetime.fromisoformat(start).timestamp()),
-                int(datetime.fromisoformat(end).timestamp()),
-            ))
+        for cal_id in GOOGLE_CALENDAR_IDS:
+            try:
+                events_result = (
+                    service.events()
+                    .list(
+                        calendarId=cal_id,
+                        timeMin=time_min,
+                        timeMax=time_max,
+                        singleEvents=True,
+                        orderBy="startTime",
+                    )
+                    .execute()
+                )
+                for event in events_result.get("items", []):
+                    start = event["start"].get("dateTime", event["start"].get("date"))
+                    end = event["end"].get("dateTime", event["end"].get("date"))
+                    if "T" not in start:
+                        continue
+                    busy.append((
+                        int(datetime.fromisoformat(start).timestamp()),
+                        int(datetime.fromisoformat(end).timestamp()),
+                    ))
+            except Exception:
+                pass  # skip calendars that can't be read
 
         busy.sort()
 
@@ -804,26 +809,27 @@ def check_proactive_suggestion():
             continue
         if start_epoch > now_epoch + 900:
             continue
-            end_dt = datetime.fromtimestamp(end_epoch, tz=TZ)
-            end_time = end_dt.strftime("%H:%M")
 
-            task = get_pending_task(now_brt.strftime("%Y-%m-%d"))
-            task_hint = f"Sugestão: {task}.\n" if task else ""
+        end_dt = datetime.fromtimestamp(end_epoch, tz=TZ)
+        end_time = end_dt.strftime("%H:%M")
 
-            msg = MSG_PROACTIVE_FOCUS.format(
-                duration=duration,
-                end_time=end_time,
-                task_hint=task_hint,
-            )
+        task = get_pending_task(now_brt.strftime("%Y-%m-%d"))
+        task_hint = f"Sugestão: {task}.\n" if task else ""
 
-            state["proactive_suggestion_last"] = now_epoch
-            save_state(state)
+        msg = MSG_PROACTIVE_FOCUS.format(
+            duration=duration,
+            end_time=end_time,
+            task_hint=task_hint,
+        )
 
-            return json.dumps({
-                "action": "suggest_focus",
-                "window": 0,
-                "message": msg,
-            })
+        state["proactive_suggestion_last"] = now_epoch
+        save_state(state)
+
+        return json.dumps({
+            "action": "suggest_focus",
+            "window": 0,
+            "message": msg,
+        })
 
     return None
 

@@ -73,16 +73,19 @@ docker exec hermes rm -rf /opt/data/profiles/accountability/plugins/gemini_meet 
 docker exec hermes ln -sf /opt/data/plugins/gemini_meet /opt/data/profiles/accountability/plugins/gemini_meet
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
+docker exec hermes mkdir -p /opt/data/profiles/accountability/scripts
+docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/profiles/accountability/scripts/checkin.py
 
 echo "=== Verificando md5sum ==="
 HASHES=$(docker exec hermes md5sum \
     /opt/data/scripts/checkin.py \
     /opt/data/home/scripts/checkin.py \
     /opt/data/home/.cron/responsibility_partner/checkin.py \
+    /opt/data/profiles/accountability/scripts/checkin.py \
     | awk '{print $1}' | sort -u | wc -l)
 
 if [ "$HASHES" -eq 1 ]; then
-    echo -e "${GREEN}checkin.py: 3 cópias idênticas.${NC}"
+    echo -e "${GREEN}checkin.py: 4 cópias idênticas.${NC}"
 else
     echo -e "${RED}checkin.py: cópias divergiram! Execute o passo 2 manualmente.${NC}"
     exit 1
