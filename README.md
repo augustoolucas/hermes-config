@@ -111,3 +111,9 @@ Everything else (SearXNG web search, fastCRW web scraping, LLM Wiki memory, Edge
 |---|---|
 | [SPECS.md](hermes-data/docs/SPECS.md) | Functional specification — every feature in detail, state schemas, timing constants, future improvements |
 | [ACCOUNTABILITY-FLOW.md](hermes-data/docs/ACCOUNTABILITY-FLOW.md) | Architecture — 11 Mermaid diagrams, state machines, data flow, troubleshooting, glossary |
+
+---
+
+## License
+
+[WTFPL](http://www.wtfpl.net/) — Do What The Fuck You Want To Public License. See [LICENSE](LICENSE).
