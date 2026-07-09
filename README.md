@@ -9,7 +9,7 @@ An ADHD-aware accountability layer built on [Hermes Agent](https://github.com/No
 - **3 daily check-ins** — morning intention, midday progress, evening wrap-up with future-day planning
 - **Follow-up & escalation** — progressively raises attention if you don't respond; auto-detects replies to suppress extraneous nudges
 - **Focus sessions** — declared work blocks with midpoint and end check-ins, retry on missed delivery, early completion
-- **Google Calendar integration** — multi-calendar support; detects free windows ≥60 min, suggests focus sessions
+- **Google Calendar integration** — multiple Google Calendars; detects free windows ≥60 min, suggests focus sessions
 - **ADHD-aware design** — re-engagement nudges at ~3 PM, micro-step unblock helper for task initiation paralysis, nightly preparation
 - **LLM Wiki** — inspectable Markdown-based persistent memory for durable facts (preferences, projects, environment)
 - **Self-hosted web tools** — SearXNG metasearch engine + fastCRW web extraction, zero API keys or rate limits
@@ -45,6 +45,7 @@ hermes-config/
 ├── docker-compose.yaml         # Hermes + SearXNG + fastCRW + LightPanda
 ├── deploy.sh                   # Sync files to container + restart
 ├── .env.example                # Environment template
+├── .gitignore
 ├── hermes-data/
 │   ├── SOUL.md                 # Agent personality & accountability rules
 │   ├── cron/
