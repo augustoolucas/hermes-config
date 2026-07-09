@@ -1,4 +1,4 @@
-# Hermes — Accountability Partner v2.5 Spec
+# Hermes — Accountability Partner v2.6 Spec
 
 ---
 
@@ -17,8 +17,9 @@ Version 2 adds six major capabilities on top of v1:
 2. **Escalation** — mandatory end-of-day status capture with multi-level follow-up
 3. **Gamification** — subtle streak and milestone tracking for motivation
 4. **ADHD-Specific Features** (v2.3) — re-engagement nudges, intention-of-the-day, unblock helper for task paralysis, nightly preparation
-5. **Calendar-Aware Proactive Suggestions** (v2.4) — Google Calendar integration detects free blocks and suggests focus sessions
+5. **Calendar-Aware Proactive Suggestions** (v2.4) — Google Calendar integration detects free blocks and suggests focus sessions; multi-calendar support with stale window filtering
 6. **LLM Wiki Memory** (v2.5) — inspectable Markdown-based long-term memory replacing Hindsight; free web search via SearXNG and web extraction via fastCRW
+7. **Auto-Fill & Follow-Up Fix** (v2.6) — automatic response detection via daily_summary mtime; follow-up duplicate prevention; complete architecture documentation
 
 The assistant does not execute tasks. It monitors, tracks, reminds, and maintains cross-session memory.
 
@@ -58,11 +59,11 @@ The assistant never defers saving. Updates are recorded right away, not at the e
 
 Three times per workday (weekdays only), a scheduled job prompts the user:
 
-**Window 1 (morning, 08:30–09:30 BRT):** References the previous day's summary if available. Asks about progress and intent for the day. User uses this summary to remember everything was done the day before to report it on his daily meeting.
+**Window 1 (morning, 09:00–09:30 BRT):** References the previous day's summary if available. Asks about progress and intent for the day. User uses this summary to remember everything was done the day before to report it on his daily meeting.
 
-**Window 2 (midday, 11:00–12:00 BRT):** References today's summary if it exists. Follows up on stated plans or asks about pending items.
+**Window 2 (midday, 11:30–12:00 BRT):** References today's summary if it exists. Follows up on stated plans or asks about pending items.
 
-**Window 3 (evening, 16:30–17:30 BRT):** Asks for end-of-day status. If no response was recorded, summarizes what is known and prompts for confirmation.
+**Window 3 (evening, 17:00–17:45 BRT):** Asks for end-of-day status. If no response was recorded, summarizes what is known and prompts for confirmation.
 
 If the user does not respond to a check-in within the scheduled window, a follow-up is sent after a delay.
 
@@ -215,8 +216,7 @@ A new re-engagement check-in fires at ~15:00 BRT (18:00 UTC) when NO check-in (W
 **Conditions:**
 - Time is between 15:00–15:55 BRT
 - No window has `user_responded_at` set
-- No focus session active
-- W3 hasn't fired yet (still in the future)
+- Last cron-detected activity was more than 30 minutes ago
 
 **Message:**
 ```
@@ -359,10 +359,10 @@ In v1, if the user did not respond to the W3 check-in (16:30–17:30), the syste
 
 A multi-level escalation ensures every day has a status capture:
 
-1. **W3 check-in** fires normally (16:30–17:30)
-2. **Follow-up** after 20 minutes if no response
+1. **W3 check-in** fires normally (17:00–17:45)
+2. **Follow-up** after 20 minutes if no response (5 min window)
 3. **Escalation Level 1** after 20 more minutes: "Fim do dia passou. Status rápido?"
-4. **Escalation Level 2** after 20 more minutes: generates a tentative summary based on what is known and asks "Baseado no que registrei, seu dia foi: [resumo]. Correto?"
+4. **Escalation Level 2** after 5 more minutes: generates a tentative summary based on what is known and asks "Baseado no que registrei, seu dia foi: [resumo]. Correto?"
 
 The daily summary at 18:30 always captures whatever was collected — with or without user confirmation.
 
@@ -520,9 +520,11 @@ The `checkin.py` script now integrates with Google Calendar via a service accoun
 
 **How it works:**
 1. `checkin.py` calls Google Calendar API every 5 minutes
-2. `get_free_windows()` calculates unoccupied blocks between 09h–18h BRT
+2. `get_free_windows()` queries **all** calendars listed in `GOOGLE_CALENDAR_ID` (comma-separated, e.g. `email1@gmail.com,work@company.org`) and calculates unoccupied blocks between 09h–18h BRT
 3. `check_proactive_suggestion()` triggers if:
    - A free window starts in the next 15 minutes
+   - Window has not already ended (`end_epoch > now`)
+   - Window did not start more than 30 minutes ago (`start_epoch >= now - 1800`) — prevents stale window dispatch after container restart
    - No active focus session
    - User hasn't responded to any check-in today
    - Cooldown of 1 hour since last suggestion
@@ -551,7 +553,7 @@ The `checkin.py` script now integrates with Google Calendar via a service accoun
 | Variable | Purpose |
 |---|---|
 | `GOOGLE_SERVICE_ACCOUNT_PATH` | Path to service account JSON key (default: `/opt/data/google-service-account.json`) |
-| `GOOGLE_CALENDAR_ID` | Email of the calendar to query (e.g., `lucasaugusto096@gmail.com`) |
+| `GOOGLE_CALENDAR_ID` | Comma-separated list of calendar IDs to query (e.g., `personal@gmail.com,work@company.org`) |
 
 ---
 
@@ -602,6 +604,35 @@ The Hermes built-in `llm-wiki` skill replaces Hindsight as the long-term memory 
 - Daily summaries continue as the task/progress record
 - Focus sessions continue in `focus_sessions.json`
 - The accountability check-in system is unchanged
+
+---
+
+### 22. Auto-Fill & Follow-Up Fix (NEW in v2.6)
+
+#### 22.1 Problem
+
+Before v2.6, the `user_responded_at` field in `state.json` existed but was **never written to**. It was read-only — `checkin.py` checked it to decide whether to send follow-ups, but nothing ever set it. Result: even after Lucas responded to a check-in, the follow-up would fire 20 minutes later.
+
+Additionally, the `followup_action` field was never saved as `"sent"` at dispatch time. The follow-up window is 5 minutes (`FOLLOWUP_WINDOW_SEC`) and the cron runs every 5 minutes — without protection, the same follow-up could fire multiple times.
+
+#### 22.2 Solution
+
+**Auto-fill responded_at:** Between the check-in send block and the follow-up block, `checkin.py` now checks if today's `daily_summary.md` exists and was modified **after** the check-in was sent (`mtime > sent_at`). If so, it auto-fills `user_responded_at`, suppressing the follow-up.
+
+**Mtime guard:** The comparison `daily_summary.mtime > sent_at` is critical. Without it, a response to W1 (daily_summary mtime = 09:00) would be interpreted as a response to W2 (sent at 11:35), falsely suppressing W2's follow-up. Each check-in validates its own time window.
+
+**Follow-up dedup:** When a follow-up is dispatched, `followup_action = "sent"` and `followup_sent_at` are now saved immediately, preventing re-dispatch on subsequent cron ticks within the same 5-minute window.
+
+#### 22.3 Impact
+
+- Follow-ups are suppressed when Lucas has genuinely responded
+- No false positives from earlier-day interactions
+- No duplicate follow-up messages
+- Streak tracking (`checkins_responded`) now accurately reflects responded windows
+
+#### 22.4 Architecture Documentation
+
+The complete system architecture is documented in `hermes-data/docs/ACCOUNTABILITY-FLOW.md` — 18 sections with Mermaid diagrams covering cron windows, state machines, response detection, follow-up/escalation, live agent skills, focus sessions, proactive suggestions, data architecture, LLM Wiki, troubleshooting, and glossary.
 
 ---
 
@@ -661,7 +692,7 @@ metrics:
 
 ### Component 2: Check-in Scheduler
 
-**What it is:** A Python script (`checkin.py`, v5) that runs every 5 minutes via cron. It determines whether a check-in, follow-up, escalation, or summary should be sent.
+**What it is:** A Python script (`checkin.py`, v6) that runs every 5 minutes via cron. It determines whether a check-in, follow-up, escalation, or summary should be sent.
 
 **How it works:**
 - Three fixed windows per weekday (morning, midday, evening) in BRT timezone
@@ -682,9 +713,9 @@ metrics:
 **Windows (BRT):**
 | Window | Time Range | Purpose |
 |--------|-----------|---------|
-| W1 | 08:30–09:30 | Morning: recap of yesterday, plans for today |
-| W2 | 11:00–12:00 | Midday: progress check on stated plans |
-| W3 | 16:30–17:30 | Evening: end-of-day status capture |
+| W1 | 09:00–09:30 | Morning: recap of yesterday, plans for today |
+| W2 | 11:30–12:00 | Midday: progress check on stated plans |
+| W3 | 17:00–17:45 | Evening: end-of-day status capture |
 
 **Timing Constants:**
 - `CHECKIN_WINDOW_SEC = 600` (10 min) — at least 2x the cron interval
@@ -694,7 +725,7 @@ metrics:
 
 **Escalation Flow (W3 only):**
 ```
-W3 check-in → no response → 20min → follow-up → no response → 20min → escalation_1 → no response → 20min → escalation_2 (tentative summary)
+W3 check-in → no response → 20min → follow-up (5min window) → no response → 20min → escalation_1 → 5min → escalation_2 (tentative summary)
 ```
 
 **Focus Session Awareness:**
@@ -723,11 +754,12 @@ W3 check-in → no response → 20min → follow-up → no response → 20min �
 ```
 
 **Copies (must stay synchronized):**
-1. `/opt/data/scripts/checkin.py` — used by cron via `script:` parameter
+1. `/opt/data/scripts/checkin.py` — canonical copy
 2. `/opt/data/home/scripts/checkin.py` — legacy mirror
 3. `/opt/data/home/.cron/responsibility_partner/checkin.py` — legacy mirror
+4. `/opt/data/profiles/accountability/scripts/checkin.py` — profile scripts (used by cron)
 
-Verify synchronization with `md5sum` after any edit.
+Verify synchronization with `md5sum` across all 4 copies after any edit.
 
 ---
 
@@ -867,7 +899,7 @@ Added in v2.5.
                        │
                        ├── reads ──> [FOCUS SESSIONS JSON]
                        │
-                       ├── reads ──> [HINDSIGHT (user profile, long-term facts)]
+                       ├── reads ──> [LLM WIKI (user profile, long-term facts)]
                        │
                        ├── writes ──> [DAILY SUMMARY]
                        │
@@ -922,8 +954,8 @@ Added in v2.5.
 **Volume mount:** `~/.hermes` → `/opt/data`
 **Model:** minimax-m2.7 via opencode-go
 **Platform:** Telegram only
-**Cron schedule:** `*/5 11-15,18-21 * * 1-5` (UTC) = `*/5 08-12,16-18 * * 1-5` (BRT)
-**Memory provider:** Hindsight (local_embedded)
+**Cron schedule:** `*/5 11-15,18-21 * * 1-5` (UTC) = `*/5 08-12,15-18 * * 1-5` (BRT)
+**Memory provider:** LLM Wiki (Markdown files, inspectable). Hindsight removed in v2.5.
 **SOUL.md:** `/opt/data/SOUL.md`
 
 **Cron Jobs:**
@@ -949,7 +981,7 @@ Added in v2.5.
 
 ---
 
-### What's Working (v2.5)
+### What's Working (v2.6)
 
 - Daily status capture with immediate persistence
 - 3x/day scheduled check-ins with follow-up logic
@@ -957,10 +989,12 @@ Added in v2.5.
 - W1 turbo with intention-of-the-day capture and forward referencing in W2/W3
 - Unblock helper skill for ADHD task initiation paralysis
 - Nightly preparation — save first task for tomorrow, reference in next day's W1
-- Proactive focus suggestions via Google Calendar — detects free blocks ≥60 min and suggests focus sessions
-- **LLM Wiki — inspectable Markdown-based long-term memory (replaces Hindsight)**
-- **Self-hosted web search via SearXNG (free, no API keys)**
-- **Self-hosted web extraction via fastCRW / crw (free, Firecrawl-compatible, ~50 MB RAM)**
+- Proactive focus suggestions via Google Calendar — multi-calendar support, stale window filtering, detects free blocks ≥60 min
+- **Auto-fill user_responded_at** via daily_summary.mtime detection — prevents extraneous follow-ups after user responds (v2.6)
+- **Follow-up duplicate prevention** — followup_action = "sent" saved at dispatch time (v2.6)
+- LLM Wiki — inspectable Markdown-based long-term memory (replaces Hindsight)
+- Self-hosted web search via SearXNG (free, no API keys)
+- Self-hosted web extraction via fastCRW / crw (free, Firecrawl-compatible, ~50 MB RAM)
 - Cross-session memory via session_search + LLM Wiki
 - Suppression of duplicate check-ins when user has already provided status
 - File-based state that survives restarts
@@ -999,13 +1033,14 @@ Added in v2.5.
 | `/opt/data/skills/research/llm-wiki/SKILL.md` | Enabled (v2.5) | Inspectable Markdown long-term memory (built-in Hermes skill) |
 | `/opt/data/wiki/` | Created (v2.5) | LLM Wiki directory — entities, concepts, schema |
 | `/opt/data/.hindsight/` | Removed (v2.5) | Hindsight data, config, and embedded PostgreSQL deleted |
-| `/opt/data/scripts/checkin.py` | Updated | v5 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions |
+| `/opt/data/scripts/checkin.py` | Updated | v6 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions. v2.6 — auto-fill user_responded_at, multi-calendar support, follow-up dedup |
 | `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
-| `/opt/data/config.yaml` | Updated (v2.4-v2.5) | Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR) |
-| `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL |
-| `deploy.sh` | Created (v2.3) | Automated deployment script |
-| `searxng/core-config/settings.yml` | Created (v2.5) | SearXNG configuration with JSON format enabled |
-| `.env.example` | Updated (v2.5) | Added GOOGLE_SERVICE_ACCOUNT_PATH, GOOGLE_CALENDAR_ID, FIRECRAWL_API_URL |
+| `/opt/data/config.yaml` | Updated | v2.4-v2.6 — Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR), removed google_meet + gemini_meet plugins |
+| `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL. v2.6 — removed GEMINI_API_KEY, PULSE_RUNTIME_PATH, shm_size |
+| `deploy.sh` | Updated | v2.3 — Created. v2.6 — removed meet plugins, pulseaudio, playwright sections; added profile scripts dir copy |
+| `hermes-data/plugins/gemini_meet/` | Removed (v2.6) | Plugin for Gemini Live voice integration in Google Meet — discontinued |
+| `hermes-data/docs/ACCOUNTABILITY-FLOW.md` | Created (v2.6) | Complete architecture documentation — 18 sections, 11 Mermaid diagrams |
+| `.env.example` | Updated | v2.5 — added GOOGLE_SERVICE_ACCOUNT_PATH, GOOGLE_CALENDAR_ID (now comma-separated), FIRECRAWL_API_URL. v2.6 — removed GEMINI_API_KEY |
 
 ---
 
@@ -1043,5 +1078,5 @@ The following improvements were identified during the v2 design process. They ar
 
 ---
 
-*Document version: 2.5 — based on Hermes Accountability Partner v2.5 implementation for Lucas Alcantara.*
-*Date: 2026-07-07*
+*Document version: 2.6 — based on Hermes Accountability Partner v2.6 implementation for Lucas Alcantara.*
+*Date: 2026-07-09*
