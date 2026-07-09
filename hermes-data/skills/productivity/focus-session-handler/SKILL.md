@@ -27,7 +27,7 @@ Also use when:
 
 All focus sessions are tracked in:
 ```
-/opt/data/.cron/responsibility_partner/focus_sessions.json
+/opt/data/profiles/accountability/.cron/responsibility_partner/focus_sessions.json
 ```
 
 Structure:
@@ -181,7 +181,7 @@ When Lucas says to cancel ("deixa pra lá", "não vou mais", "cancela"):
 
 ## Pitfalls
 
-- **Do NOT use `~` in paths.** Always use `/opt/data/.cron/responsibility_partner/`
+- **Do NOT use `~` in paths.** Always use `/opt/data/profiles/accountability/.cron/responsibility_partner/`
 - **Do NOT create focus sessions without duration.** Always ask if not specified.
 - **Do NOT interrupt focus sessions with regular check-ins.** The SOUL.md marks focus sessions as "do not interrupt" periods.
 - **Cancel cron jobs on early completion.** Stale cron jobs firing after Lucas already finished is confusing.

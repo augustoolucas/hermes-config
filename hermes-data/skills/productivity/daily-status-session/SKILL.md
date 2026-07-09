@@ -130,7 +130,7 @@ Plus `concluído` for done tasks.
 
 ## Pitfalls
 
-- **Do NOT use `~` in paths.** Use absolute path `/opt/data/.cron/responsibility_partner/`. `~` resolves differently for the cron agent (/opt/data) vs main agent (/opt/data/home), causing split-brain where main agent writes to one directory and cron reads from another. The canonical directory is `/opt/data/.cron/responsibility_partner/` — aligned with the cron agent's HOME.
+- **Do NOT use `~` in paths.** Always use `/opt/data/profiles/accountability/.cron/responsibility_partner/`. `~` resolves differently for the cron agent vs main agent, causing split-brain. The accountability profile data directory is `/opt/data/profiles/accountability/.cron/responsibility_partner/` — aligned with `CHECKIN_DATA_DIR` in docker-compose.
 - **Do NOT use `search_files` to find the daily summary path.** The path is deterministic — go straight to `read_file`. Using search_files adds an unnecessary round trip.
 - **Do NOT do a second round of tool calls** if you already have the daily summary content from the first parallel batch. Parse and respond.
 - **Save the daily summary after EVERY status update**, not just at end of conversation. The cron system depends on it for reply detection.
@@ -140,7 +140,7 @@ Plus `concluído` for done tasks.
 - **Don't let infrastructure debugging derail the conversation.** Cron errors, rate limits, skill config — these are YOUR problems, not his. Handle them without losing focus on his task status. Circle back to his tasks before the conversation ends.
 - **When interrupted mid-status, resume.** If Lucas reported a task status and the conversation got sidetracked (by meta-discussion or error reports), explicitly circle back: "Só pra confirmar, teu status ficou X. Alguma atualização desde então?"
 - **Sync checkin.py after any edit.** Three copies exist and ALL must stay identical:
-  1. `/opt/data/.cron/responsibility_partner/checkin.py` (canonical — where cron reads from)
+  1. `/opt/data/profiles/accountability/.cron/responsibility_partner/checkin.py` — profile scripts dir (used by cron)
   2. `/opt/data/scripts/checkin.py` (used by cron via `script:` parameter, resolved from HERMES_HOME)
   3. `/opt/data/home/scripts/checkin.py` (legacy mirror, also synced)
   After patching the canonical, cp it to the other two. Verify with `md5sum` on all three.
