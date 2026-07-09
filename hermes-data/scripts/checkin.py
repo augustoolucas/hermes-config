@@ -1033,10 +1033,27 @@ def main():
             }))
             return
 
+        # ── Auto-fill user_responded_at via daily_summary ─────────
+        # Se Lucas já respondeu (daily_summary foi modificado depois do envio),
+        # marca como respondido para evitar follow-up desnecessário.
+        if sent_at and not responded_at:
+            today_summary = load_daily_summary(today)
+            if today_summary and (today_summary.get("tasks") or today_summary.get("summary_text")):
+                ds_path = f"{SUMMARY_PREFIX}_{today}.md"
+                try:
+                    if os.path.getmtime(ds_path) > sent_at:
+                        ws["user_responded_at"] = now_epoch
+                        save_state(state)
+                except OSError:
+                    pass
+
         # ── Follow-up ─────────────────────────────────────────────
         if sent_at and not responded_at and not followup_action:
             followup_start = sent_at + FOLLOWUP_DELAY_SEC
             if followup_start <= now_epoch < followup_start + FOLLOWUP_WINDOW_SEC:
+                ws["followup_action"] = "sent"
+                ws["followup_sent_at"] = now_epoch
+                save_state(state)
                 print(json.dumps({
                     "action": "send_followup",
                     "window": w_int,
