@@ -48,29 +48,6 @@ docker cp hermes-data/skills/productivity/unblock-helper/SKILL.md \
 echo "=== Criando diretórios dos skills ==="
 docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
 
-echo "=== Copiando plugin gemini_meet ==="
-docker exec hermes mkdir -p /opt/data/plugins/gemini_meet
-docker cp hermes-data/plugins/gemini_meet/plugin.yaml \
-    hermes:/opt/data/plugins/gemini_meet/plugin.yaml
-docker cp hermes-data/plugins/gemini_meet/__init__.py \
-    hermes:/opt/data/plugins/gemini_meet/__init__.py
-docker cp hermes-data/plugins/gemini_meet/tools.py \
-    hermes:/opt/data/plugins/gemini_meet/tools.py
-docker cp hermes-data/plugins/gemini_meet/gemini_live.py \
-    hermes:/opt/data/plugins/gemini_meet/gemini_live.py
-docker cp hermes-data/plugins/gemini_meet/realtime_speaker.py \
-    hermes:/opt/data/plugins/gemini_meet/realtime_speaker.py
-docker cp hermes-data/plugins/gemini_meet/meet_bot.py \
-    hermes:/opt/data/plugins/gemini_meet/meet_bot.py
-docker cp hermes-data/plugins/gemini_meet/process_manager.py \
-    hermes:/opt/data/plugins/gemini_meet/process_manager.py
-docker cp hermes-data/plugins/gemini_meet/audio_bridge.py \
-    hermes:/opt/data/plugins/gemini_meet/audio_bridge.py
-
-echo "=== Symlink no accountability profile ==="
-docker exec hermes mkdir -p /opt/data/profiles/accountability/plugins
-docker exec hermes rm -rf /opt/data/profiles/accountability/plugins/gemini_meet 2>/dev/null
-docker exec hermes ln -sf /opt/data/plugins/gemini_meet /opt/data/profiles/accountability/plugins/gemini_meet
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py
 docker exec hermes mkdir -p /opt/data/profiles/accountability/scripts
@@ -93,55 +70,5 @@ fi
 
 echo "=== Reiniciando container ==="
 docker restart hermes
-
-echo "=== Configurando áudio (PulseAudio + ALSA bridge) ==="
 sleep 3
-
-# Instalar dependências Python que não vêm na imagem
-echo "=== Instalando dependências Python ==="
-docker exec hermes /opt/hermes/.venv/bin/python3 -m ensurepip --upgrade &> /dev/null
-docker exec hermes /opt/hermes/.venv/bin/python3 -m pip install playwright &> /dev/null
-
-# ALSA → PulseAudio bridge (sobrevive apenas até recriação do container)
-docker exec hermes bash -c '
-cat > /etc/asound.conf << '"'"'ASOUND'"'"'
-pcm.!default {
-    type pulse
-    hint { show on description "Default ALSA Output (PulseAudio)" }
-}
-pcm.pulse { type pulse }
-ctl.!default { type pulse }
-ASOUND
-echo "asound.conf created"
-'
-
-# PulseAudio config persistent (no volume /opt/data/.config/pulse/)
-docker exec -u hermes hermes bash -c '
-mkdir -p /opt/data/.config/pulse /tmp/hermes-pulse
-chmod 700 /tmp/hermes-pulse
-
-cat > /opt/data/.config/pulse/daemon.conf << "PULSE"
-exit-idle-time = -1
-PULSE
-
-cat > /opt/data/.config/pulse/default.pa << "PULSE"
-load-module module-null-sink sink_name=auto_null
-load-module module-native-protocol-unix auth-anonymous=1
-PULSE
-
-# Kill stale
-pkill -u hermes pulseaudio 2>/dev/null || true
-sleep 1
-
-# Start
-pulseaudio --start --exit-idle-time=-1
-sleep 1
-
-if pulseaudio --check 2>/dev/null; then
-    echo "PulseAudio ready — realtime voice enabled"
-else
-    echo "PulseAudio unavailable — bot will fall back to transcribe mode"
-fi
-'
-
 echo -e "${GREEN}Deploy concluído.${NC}"
