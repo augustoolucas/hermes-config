@@ -57,7 +57,7 @@ The system has two agents that don't communicate directly — they share files.
 
 ## 3. Cron Schedule & Check-in Windows
 
-The cron runs **every 5 minutes** during two blocks: 08:00-12:00 and 15:00-18:00 BRT (11:00-15:00 and 18:00-21:00 UTC), Monday through Friday. Outside those hours, the system does nothing.
+The cron runs **every 5 minutes** during two blocks: 08:00-12:00 and 15:00-18:00 BRT, Monday through Friday. Outside those hours, the system does nothing.
 
 ```mermaid
 gantt

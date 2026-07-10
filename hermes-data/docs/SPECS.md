@@ -43,10 +43,10 @@ When the user provides a status update (e.g., "I finished task X", "I'm working 
 1. **Immediately** saves the update to persistent storage
 
 2. Classifies the task into one of four statuses:
-   - `em andamento` — actively working
-   - `pendente` — planned but not started
-   - `em espera` — blocked, dependent on external factor
-   - `concluído` — completed
+   - `in progress` — actively working
+   - `pending` — planned but not started
+   - `blocked` — blocked, dependent on external factor
+   - `completed` — completed
 3. Records metadata: task name, status, notes, start date (and completion date if done)
 4. Confirms back to the user what was registered (one-line summary)
 5. Calculates and includes gamification metrics in the daily summary
@@ -78,11 +78,11 @@ Regular check-ins (W1, W2, W3) are automatically suppressed when the user is in 
 #### 4.1 Declaration
 
 The user declares a focus session using natural language:
-- "vou focar em X por 2h"
-- "foco na API agora"
-- "vou trabalhar na batimetria por 1h30"
+- "I'll focus on X for 2h"
+- "focus on the API now"
+- "I'll work on bathymetry for 1h30"
 
-If no duration is specified, the assistant asks: "Quanto tempo pretende dedicar?"
+If no duration is specified, the assistant asks: "How long do you plan to dedicate?"
 
 #### 4.2 Scheduling
 
@@ -90,12 +90,12 @@ Upon declaration, the assistant:
 1. Registers the session in `focus_sessions.json`
 2. Creates a cron one-shot for the end-of-session check-in
 3. For sessions >60 minutes, creates an additional cron one-shot for a mid-point check-in
-4. Confirms naturally: "Focado em [task] até ~[hora]. Te cobro lá."
+4. Confirms naturally: "Focused on [task] until ~[time]. I'll check on you then."
 
 #### 4.3 Mid-Point Check-In
 
 For sessions >60 minutes, a check-in fires at the halfway mark:
-- "Faz 1h. Ainda em [task]?"
+- "It's been 1h. Still on [task]?"
 - One question, no pressure
 - If the user responds, the session continues normally
 - If no response, the system does not insist — waits for the end-of-session
@@ -103,30 +103,30 @@ For sessions >60 minutes, a check-in fires at the halfway mark:
 #### 4.4 End-of-Session Check-In
 
 When the declared duration expires:
-- "Tempo de [task] acabou. Como foi?"
+- "Time for [task] is up. How was it?"
 - Opens space for the user to report progress
 
 #### 4.5 Escalation (No Response)
 
 If the user does not respond to the end-of-session check-in:
-1. After 20 minutes: "Ei, a sessão de [task] acabou. Conseguiu avançar?"
-2. After another 20 minutes: "Preciso fechar o status. [task] estava em andamento. Correto?"
+1. After 20 minutes: "Hey, the [task] session ended. Did you make any progress?"
+2. After another 20 minutes: "I need to close the status. [task] was in progress. Correct?"
 3. Session is marked as `expired` in state
 
 #### 4.6 Early Completion
 
-When the user says "terminei", "parei", "concluí", "acabei":
+When the user says "I'm done", "I stopped", "I finished", "complete":
 1. Pending cron jobs (mid-point and end) are cancelled
 2. Session is marked as `completed`
 3. Daily summary is updated with the result
-4. Response: "Boa. [task] finalizada."
+4. Response: "Nice. [task] completed."
 
 #### 4.7 Cancellation
 
-When the user says "deixa pra lá", "não vou mais", "cancela":
+When the user says "never mind", "I won't anymore", "cancel":
 1. Same as early completion but status = `cancelled`
 2. Daily summary is updated with the cancellation
-3. Response: "OK, [task] cancelada."
+3. Response: "OK, [task] cancelled."
 
 #### 4.8 Rules
 
@@ -148,7 +148,7 @@ Cron one-shot jobs are fire-and-forget — if the LLM provider returns an error 
 
 **Escalation after retry:**
 - If the end-of-session check-in was sent but the user didn't respond, escalation follows the same pattern as W3:
-  1. After 15 minutes: "Ei, a sessão de [task] acabou. Conseguiu avançar?"
+  1. After 15 minutes: "Hey, the [task] session ended. Did you make any progress?"
   2. After another 15 minutes: session marked as `expired`, daily summary updated
 
 **State fields involved:**
@@ -220,12 +220,12 @@ A new re-engagement check-in fires at ~15:00 BRT (18:00 UTC) when NO check-in (W
 
 **Message:**
 ```
-Lucas, ainda não registramos nada hoje. 2 minutos, status rápido? 📝
+Lucas, we haven't logged anything today. 2 minutes, quick status? 📝
 ```
 
 **Tone:** practical, no guilt. Low-friction entry point to get back on track.
 
-**Cron schedule extended:** `*/5 11-15,18-21 * * 1-5` (added 18:00 UTC = 15:00 BRT)
+**Cron schedule extended:** `*/5 8-12,15-18 * * 1-5` (BRT timezone)
 
 #### 6.3 Suppression
 
@@ -242,22 +242,22 @@ The W1 check-in previously only recapped yesterday. It didn't generate a forward
 #### 7.2 Solution
 
 The W1 check-in now asks two targeted questions:
-1. "Qual a coisa mais importante pra entregar hoje?"
-2. "Tem algo burocrático que quer tirar do caminho cedo?"
+1. "What's the most important thing to deliver today?"
+2. "Is there any bureaucratic thing you want to get out of the way early?"
 
 When Lucas responds, the live agent extracts the main intention and saves it as `intention` in the daily_summary YAML frontmatter. W2 and W3 automatically reference this intention, creating a light accountability thread throughout the day:
 
-W2: "📌 Intenção do dia: Terminar o PR da API"
-W3: "📌 Intenção do dia: Terminar o PR da API"
+W2: "📌 Day's intention: Finish the API PR"
+W3: "📌 Day's intention: Finish the API PR"
 
 **Rules:**
 - One short sentence. Not paragraphs.
 - If Lucas doesn't answer the question directly, don't force it — skip.
-- The intention is referenced, not weaponized. "Você disse que ia fazer X e não fez" is never the tone.
+- The intention is referenced, not weaponized. "You said you were going to do X and didn't" is never the tone.
 
 ---
 
-### 8. Unblock Helper — "Só Começa" Mode (NEW in v2.3)
+### 8. Unblock Helper — "Just Start" Mode (NEW in v2.3)
 
 #### 8.1 Problem
 
@@ -266,14 +266,14 @@ ADHD task initiation paralysis: Lucas knows what to do but can't start. The barr
 #### 8.2 Solution
 
 A new skill (`unblock-helper`) triggered by natural language:
-- "não tô conseguindo começar X"
-- "tô travado em Y"
-- "procrastinando Z"
+- "I can't get started on X"
+- "I'm stuck on Y"
+- "procrastinating on Z"
 
 **Flow:**
-1. Hermes asks ONE question: "Qual o menor passo possível? Só abrir o arquivo? Só ler o ticket?"
+1. Hermes asks ONE question: "What's the smallest possible step? Just open the file? Just read the ticket?"
 2. Lucas names the micro-step
-3. Hermes confirms: "Beleza, então o plano é [micro-passo]. Vou te perguntar em 10min como foi. Quer?"
+3. Hermes confirms: "Cool, so the plan is [micro-step]. I'll ask you in 10 min how it went. Want to?"
 4. If accepted, creates a cron one-shot 10min check-in
 
 This is NOT task decomposition. It's barrier reduction. Lucas already knows the full task — he just needs the first step to feel trivial.
@@ -294,17 +294,17 @@ Morning decision fatigue hits ADHD hard. If Lucas already knows what to start wi
 
 #### 9.2 Solution
 
-The W3 check-in now includes: "Qual vai ser sua primeira tarefa amanhã?"
+The W3 check-in now includes: "What will be your first task tomorrow?"
 
 When Lucas responds, the live agent saves `plans_for_next_day` to **tomorrow's** daily_summary file (creating it if it doesn't exist, with minimal YAML frontmatter).
 
 The next day's W1 automatically references it:
-"Ontem você planejou começar com: Revisar o PR da batimetria. Ainda faz sentido?"
+"Yesterday you planned to start with: Review the bathymetry PR. Still makes sense?"
 
 **Rules:**
 - One short sentence. Not a full task breakdown.
-- If Lucas doesn't specify or says "não sei", skip — don't force it.
-- The W1 reference is a question, not an obligation. "Ainda faz sentido?" not "Você disse que ia fazer."
+- If Lucas doesn't specify or says "I don't know", skip — don't force it.
+- The W1 reference is a question, not an obligation. "Still makes sense?" not "You said you were going to do it."
 
 ---
 
@@ -312,8 +312,8 @@ The next day's W1 automatically references it:
 
 The cron schedule was extended to support the re-engagement check-in at 15:00 BRT:
 
-**Old:** `*/5 11-15,19-21 * * 1-5` (UTC)
-**New:** `*/5 11-15,18-21 * * 1-5` (UTC)
+**Old:** `*/5 11-15,19-21 * * 1-5`
+**New:** `*/5 8-12,15-18 * * 1-5` (BRT timezone — covers 08:00-12:00 and 15:00-18:00 BRT)
 
 The 18:00 UTC hour covers 15:00–15:55 BRT, enabling the re-engagement window. All existing check-in windows (W1, W2, W3) remain unchanged.
 
@@ -323,22 +323,22 @@ The 18:00 UTC hour covers 15:00–15:55 BRT, enabling the re-engagement window. 
 
 #### 11.1 Problem
 
-Tasks can stay in `em andamento` (in progress) for days without updates. The user may forget about them or lose momentum. In v1, stale tasks were only surfaced when the check-in system happened to reference them — there was no proactive detection.
+Tasks can stay in `in progress` for days without updates. The user may forget about them or lose momentum. In v1, stale tasks were only surfaced when the check-in system happened to reference them — there was no proactive detection.
 
 #### 11.2 Solution
 
-The `checkin.py` script now automatically detects tasks that have been in `em andamento` for more than 3 days without an update to the `since` field.
+The `checkin.py` script now automatically detects tasks that have been `in progress` for more than 3 days without an update to the `since` field.
 
 **When it triggers:**
 - During the W1 (morning) check-in generation
-- Only for tasks with `status: "em andamento"` and `since` older than 3 days
+- Only for tasks with `status: "in progress"` and `since` older than 3 days
 
 **What it does:**
 - Appends a warning section to the W1 check-in message:
   ```
-  ⚠️ *Tasks em andamento há mais de 3 dias:*
-  • [task name] — desde [date] (N dias)
-  Alguma atualização sobre essas?
+  ⚠️ *Tasks in progress for more than 3 days:*
+  • [task name] — since [date] (N days)
+  Any updates on these?
   ```
 
 **Rules:**
@@ -361,8 +361,8 @@ A multi-level escalation ensures every day has a status capture:
 
 1. **W3 check-in** fires normally (17:00–17:45)
 2. **Follow-up** after 20 minutes if no response (5 min window)
-3. **Escalation Level 1** after 20 more minutes: "Fim do dia passou. Status rápido?"
-4. **Escalation Level 2** after 5 more minutes: generates a tentative summary based on what is known and asks "Baseado no que registrei, seu dia foi: [resumo]. Correto?"
+3. **Escalation Level 1** after 20 more minutes: "End of day passed. Quick status?"
+4. **Escalation Level 2** after 5 more minutes: generates a tentative summary based on what is known and asks "Based on what I recorded, your day was: [summary]. Correct?"
 
 The daily summary at 18:30 always captures whatever was collected — with or without user confirmation.
 
@@ -433,7 +433,7 @@ metrics:
 
 #### 15.2 Streak Calculation
 
-**Streak of days:** consecutive days with a daily summary containing at least 1 task or real summary text. Generic entries like "Sem atividade" do not count.
+**Streak of days:** consecutive days with a daily summary containing at least 1 task or real summary text. Generic entries like "No activity" do not count.
 
 **Focus streak:** consecutive days with at least 1 focus session completed.
 
@@ -454,7 +454,7 @@ Milestones are commented on subtly (1 line) by the assistant when relevant:
 - Only mention milestones once (first time reached)
 - Never mention streak breaks or negative trends
 - Read the room — if the user seems stressed, skip the comment
-- One line, no fanfare: "3 dias seguidos de atualização. Consistência."
+- One line, no fanfare: "3 consecutive days of updates. Consistency."
 - No emojis in milestone messages
 
 ---
@@ -500,7 +500,7 @@ Before closing the conversation, the assistant ensures it has an accurate, up-to
 The assistant operates on a simple principle: **nothing falls through the cracks**.
 
 - Tasks that are started are tracked until they are done or explicitly cancelled
-- If a task has been in `em andamento` for multiple days without update, the check-in system flags it
+- If a task has been in `in progress` for multiple days without update, the check-in system flags it
 - If the user mentions a blocker, it is recorded and followed up on in the next check-in
 - If the user goes quiet, the system detects the silence and prompts for a status check
 - Focus sessions are tracked until completion, cancellation, or expiry
@@ -528,7 +528,7 @@ The `checkin.py` script now integrates with Google Calendar via a service accoun
    - No active focus session
    - User hasn't responded to any check-in today
    - Cooldown of 1 hour since last suggestion
-4. Output: `action: "suggest_focus"` with message like: "Tem 90min livres até 15h. Sugestão: [tarefa pendente]. Quer focar?"
+4. Output: `action: "suggest_focus"` with message like: "You have 90 free minutes until 3pm. Suggestion: [pending task]. Want to focus?"
 
 **Dependencies:**
 - `google-auth` and `google-api-python-client` libraries in the container
@@ -670,10 +670,10 @@ plans_for_next_day: 'Plans for tomorrow'
 tasks:
 - id: task-id
   name: Task description
-  status: em andamento|pendente|em espera|concluído
+  status: in progress|pending|blocked|completed
   notes: 'Latest notes'
   since: 'YYYY-MM-DD'
-  completed: 'YYYY-MM-DD'  # only for concluído
+  completed: 'YYYY-MM-DD'  # only for completed
 metrics:
   tasks_completed_today: 0
   focus_sessions_completed: 0
@@ -849,7 +849,7 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - During the conversation, it updates the daily summary immediately when the user provides status information
 - Focus session declarations are handled by the `focus-session-handler` skill
 - At the end, it confirms what was recorded
-- Task status uses four categories (em andamento, pendente, em espera, concluído)
+- Task status uses four categories (in progress, pending, blocked, completed)
 
 **Skills used:**
 - `daily-status-session` (v2.1.0) — optimized flow for status updates, parallel tool calls
@@ -954,14 +954,14 @@ Added in v2.5.
 **Volume mount:** `~/.hermes` → `/opt/data`
 **Model:** minimax-m2.7 via opencode-go
 **Platform:** Telegram only
-**Cron schedule:** `*/5 11-15,18-21 * * 1-5` (UTC) = `*/5 08-12,15-18 * * 1-5` (BRT)
+**Cron schedule:** `*/5 8-12,15-18 * * 1-5` (BRT)
 **Memory provider:** LLM Wiki (Markdown files, inspectable). Hindsight removed in v2.5.
 **SOUL.md:** `/opt/data/SOUL.md`
 
 **Cron Jobs:**
 | Job | Schedule | Purpose |
 |-----|----------|---------|
-| `c9e31c8f7b6a` | `*/5 11-15,18-21 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation + re-engagement + proactive focus suggestions |
+| `c9e31c8f7b6a` | `*/5 8-12,15-18 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation + re-engagement + proactive focus suggestions |
 | `c102a47935ce` | `0 21 * * 5` | Weekly report (Friday 18h BRT) |
 | Focus session one-shots | Dynamic | Created per focus session declaration |
 
@@ -1026,7 +1026,7 @@ Added in v2.5.
 
 | File | Action | Description |
 |------|--------|-------------|
-| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep. v2.4 — Sugestões Proativas. v2.5 — LLM Wiki substitui Hindsight |
+| `/opt/data/SOUL.md` | Updated | v2.3 — Re-engagement, Intention, Unblock Helper, Nightly Prep. v2.4 — Proactive Suggestions. v2.5 — LLM Wiki replaces Hindsight |
 | `/opt/data/skills/productivity/focus-session-handler/SKILL.md` | Created | Focus session lifecycle management skill |
 | `/opt/data/skills/productivity/daily-status-session/SKILL.md` | Updated | v2.3 — intention extraction, nightly prep, unblock detection. v2.5 — LLM Wiki orientation on session start |
 | `/opt/data/skills/productivity/unblock-helper/SKILL.md` | Created (v2.3) | Task initiation paralysis — micro-step barrier reduction |
@@ -1055,7 +1055,7 @@ The following improvements were identified during the v2 design process. They ar
 2. **Weekly Pattern Report** — Analyze daily summaries from the past week and identify:
    - Most productive hours (based on when tasks are marked done)
    - Distraction frequency (tasks started but not completed)
-   - Tasks that never get started (always "pendente")
+   - Tasks that never get started (always "pending")
    - Average focus session duration and completion rate
 
 ### Medium Priority

@@ -15,10 +15,10 @@
       "context_from": null,
       "schedule": {
         "kind": "cron",
-        "expr": "*/5 11-15,18-21 * * 1-5",
-        "display": "*/5 11-15,19-21 * * 1-5"
+        "expr": "*/5 8-12,15-18 * * 1-5",
+        "display": "*/5 8-12,15-18 * * 1-5"
       },
-      "schedule_display": "*/5 11-15,18-21 * * 1-5",
+      "schedule_display": "*/5 8-12,15-18 * * 1-5",
       "repeat": {
         "times": null,
         "completed": 5642
