@@ -74,6 +74,8 @@ When Lucas responds to the W3 check-in (which now asks "qual vai ser sua primeir
 
 When Lucas shares task progress, save `daily_summary_YYYY-MM-DD.md` with YAML frontmatter right after responding — don't defer to end of conversation. This ensures the cron check-in system sees updated context.
 
+**CRITICAL: ALWAYS create a NEW file with TODAY's date.** When you read yesterday's daily_summary for context, that file is a historical record — NEVER overwrite or modify it. Always write to `daily_summary_YYYY-MM-DD.md` where YYYY-MM-DD is today's date. If today's file already exists, update it in place (edit_file). If it doesn't exist, create it fresh (write_file).
+
 Format:
 ```yaml
 ---
