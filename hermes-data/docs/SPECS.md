@@ -961,8 +961,8 @@ Added in v2.5.
 **Cron Jobs:**
 | Job | Schedule | Purpose |
 |-----|----------|---------|
-| `c9e31c8f7b6a` | `*/5 8-12,15-18 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation + re-engagement + proactive focus suggestions |
-| `c102a47935ce` | `0 21 * * 5` | Weekly report (Friday 18h BRT) |
+| `c9e31c8f7b6a` | `*/5 8-12,15-18 * * 1-5` | Daily check-ins (W1, W2, W3) + escalation + re-engagement + proactive focus suggestions + weekly report (Fri 18:00) |
+| `c102a47935ce` | `0 21 * * 5` | Weekly report — paused in v2.6.1 (integrated into c9e31c8f7b6a via checkin.py with richer prompt) |
 | Focus session one-shots | Dynamic | Created per focus session declaration |
 
 **Toolsets enabled for cron:**
