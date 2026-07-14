@@ -18,6 +18,14 @@ if [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
     exit 1
 fi
 
+echo "=== Rodando validação pré-deploy ==="
+if bash hermes-data/tests/validate.sh; then
+    echo -e "${GREEN}Validação OK.${NC}"
+else
+    echo -e "${RED}Validação falhou. Corrija os erros antes de deploy.${NC}"
+    exit 1
+fi
+
 echo "=== Substituindo placeholder e injectando no container ==="
 # Write template to temp file, then merge preserving scheduler state
 TEMPLATE_FILE=$(mktemp)

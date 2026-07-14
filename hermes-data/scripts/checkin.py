@@ -888,12 +888,26 @@ def main():
             # Inclui focus sessions e métricas no resumo
             focus = load_focus_sessions()
             metrics = calculate_metrics(today)
+            responded = sum(1 for w in state["windows"].values() if w.get("user_responded_at"))
+            total_sent = sum(1 for w in state["windows"].values() if w.get("checkin_sent_at"))
+            focus_completed = metrics.get("focus_sessions_completed", 0)
+            tasks_completed = metrics.get("tasks_completed_today", 0)
+            streak = metrics.get("current_streak", 0)
+
+            message = (
+                f"📊 *Resumo do dia — {today}*\n\n"
+                f"*Check-ins:* {responded}/{total_sent} respondidos\n"
+                f"*Focus sessions:* {focus_completed} completadas\n"
+                f"*Tarefas:* {tasks_completed} concluídas\n"
+                f"*Streak:* {streak} dias"
+            )
             print(json.dumps({
                 "action": "generate_daily_summary",
                 "date": today,
                 "windows": state["windows"],
                 "focus_sessions": focus.get("completed_today", []),
                 "metrics": metrics,
+                "message": message,
             }))
             return
 

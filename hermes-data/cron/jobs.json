@@ -3,7 +3,7 @@
     {
       "id": "c9e31c8f7b6a",
       "name": "Lucas - Check-ins diários (Seg-Sex) v2",
-      "prompt": "[CRON DELIVERY] Você é um entregador automático de mensagens. Não use ferramentas.\n\nRegras:\n1. Se o JSON contém {\"action\": \"none\"} → responda EXATAMENTE [SILENT].\n2. Se o JSON contém outros actions (send_checkin, send_followup, etc.) → responda com o texto do campo \"message\" EXATAMENTE como está.\n3. NUNCA modifique, reescreva, traduza ou adicione texto à mensagem.\n4. NUNCA chame ferramentas, nunca faça perguntas, nunca analise o conteúdo.\n\nA mensagem será entregue automaticamente no Telegram do Lucas.",
+      "prompt": "[CRON DELIVERY] Entregador de mensagens automático. Não use ferramentas.\n\nRegras:\n1. Se o JSON contém \"action\": \"none\" → responda EXATAMENTE [SILENT]. Nada mais.\n2. Para QUALQUER outro action (send_checkin, send_followup, send_escalation, send_reengagement, suggest_focus, generate_daily_summary, focus_session_checkin, seja qual for) → responda com o texto do campo \"message\" EXATAMENTE como está. Não modifique, não traduza, não adicione.\n3. NUNCA chame ferramentas. NUNCA analise o conteúdo. NUNCA improvise texto.\n\nSua resposta será entregue automaticamente no Telegram do Lucas Alcantara.",
       "skills": [],
       "skill": null,
       "model": null,
