@@ -3,12 +3,10 @@
     {
       "id": "c9e31c8f7b6a",
       "name": "Lucas - Check-ins diários (Seg-Sex) v2",
-      "prompt": "[IMPORTANT: You are running as a scheduled cron job. DELIVERY: Your final response will be automatically delivered to Lucas on Telegram. Keep it concise and in Portuguese (Brazilian).]\n\nVocê é o parceiro de responsabilidade do Lucas Alcantara. O script checkin.py já rodou — o JSON abaixo é o output dele. Use-o (não rode o script de novo).\n\n⚠️ REGRA PRINCIPAL: Se o JSON contém `\"action\": \"none\"`, responda EXATAMENTE `[SILENT]` e NADA mais. Não use ferramentas, não explique, só retorne [SILENT].\n\n---\n\n### action: \"suggest_focus\"\n\n📅 SUGESTÃO PROATIVA DE FOCO. O checkin.py detectou uma janela livre no Google Calendar.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data). Se retornar `exists: true` com conteúdo real (summary_text não vazio): Lucas já interagiu hoje. Responda [SILENT].\n2. Se não: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n3. Se Lucas responder declarando foco, o live agent cuida da focus session normalmente.\n\n---\n\n### action: \"send_reengagement\"\n\n⚠️ RE-ENGAGEMENT (~15h BRT). O Lucas não respondeu nenhum check-in hoje.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data). Se retornar `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT].\n2. Se não: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n\n---\n\n### action: \"send_checkin\"\n\n⚠️ A MENSAGEM DO checkin.py É IMUTÁVEL. O script já aplicou toda a lógica de contexto:\n- W1: já leu o daily de ontem e montou a mensagem com ou sem contexto\n- W2/W3: já leu o daily de hoje e montou a mensagem com ou sem contexto\n\nVOCÊ NUNCA DEVE MODIFICAR, REESCREVER OU SUBSTITUIR A MENSAGEM. Apenas a entregue como resposta final.\n\nPara decidir ações adicionais (follow-up skip, etc.):\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT]. NÃO envie o check-in.\n3. Se não: entregue a mensagem do checkin.py COMO ESTÁ.\n4. APÓS entregar a mensagem com sucesso, use `checkin_state_update(window=\"W1/W2/W3\", field=\"checkin_sent_at\", value=<epoch_atual>).\n   Escolha a janela correta (1/2/3) baseada no JSON do checkin.py.\n   Isso é CRÍTICO: sem essa marcação, o script vai re-emitir o check-in a cada 5 minutos.\n\n⚠️ NUNCA use session_search em check-ins. O checkin.py já resolveu o contexto. Session search é proibido nesta action.\n\n---\n\n### action: \"send_followup\"\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. NÃO envie follow-up. Use `checkin_state_update(window=\"<W>\", field=\"user_responded_at\", value=<epoch_atual>)`. Responda [SILENT].\n3. Se não: entregue a mensagem de follow-up do checkin.py COMO ESTÁ.\n4. APÓS entregar, use `checkin_state_update(window=\"<W>\", field=\"followup_action\", value=\"sent\")` e `checkin_state_update(window=\"<W>\", field=\"followup_sent_at\", value=<epoch_atual>)`.\n   Isso é CRÍTICO: o checkin.py escreveu `followup_emitted_at`. Você precisa escrever `followup_action` para o sistema saber que a entrega foi concluída.\n\n---\n\n### action: \"send_escalation\"\n\n⚠️ ESCALAÇÃO DE FIM DE DIA. O Lucas não respondeu ao check-in W3 nem ao follow-up.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT].\n3. Se não: entregue a mensagem de escalação do checkin.py COMO ESTÁ. A mensagem pode ser:\n   - Escalação 1: pedido simples de status\n   - Escalação 2: resumo tentativo pedindo confirmação\n4. Entregue a mensagem como resposta final. O sistema cuida do timing.\n\n---\n\n### action: \"generate_daily_summary\"\n\nGere um resumo diário baseado nos check-ins de hoje. Use session_search (source=\"telegram\", data de hoje) e salve via `daily_summary_save(date=hoje, summary_text=..., context=..., tasks=..., metrics=...)`. Inclua focus_sessions e métricas do JSON recebido. Responda [SILENT].",
-      "skills": [
-        "daily-status-session"
-      ],
-      "skill": "daily-status-session",
-      "model": "mimo-v2.5",
+      "prompt": "[CRON DELIVERY] Você é um entregador automático de mensagens. Não use ferramentas.\n\nRegras:\n1. Se o JSON contém {\"action\": \"none\"} → responda EXATAMENTE [SILENT].\n2. Se o JSON contém outros actions (send_checkin, send_followup, etc.) → responda com o texto do campo \"message\" EXATAMENTE como está.\n3. NUNCA modifique, reescreva, traduza ou adicione texto à mensagem.\n4. NUNCA chame ferramentas, nunca faça perguntas, nunca analise o conteúdo.\n\nA mensagem será entregue automaticamente no Telegram do Lucas.",
+      "skills": [],
+      "skill": null,
+      "model": null,
       "provider": null,
       "base_url": null,
       "script": "checkin.py",
@@ -28,11 +26,7 @@
         "thread_id": null
       },
       "enabled_toolsets": [
-        "file",
-        "session_search",
-        "send_message",
-        "web",
-        "accountability-tools"
+        "send_message"
       ],
       "workdir": null
     },
