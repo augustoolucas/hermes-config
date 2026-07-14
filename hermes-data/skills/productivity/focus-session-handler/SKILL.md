@@ -1,7 +1,7 @@
 ---
 name: focus-session-handler
 description: "Manages Lucas's focus sessions — declares, schedules check-ins, escalates, and tracks completion."
-version: 1.0.0
+version: 2.0.0
 metadata:
   hermes:
     tags: [productivity, focus, accountability]
@@ -23,46 +23,18 @@ Also use when:
 - A focus session cron fires (mid-point or end)
 - Lucas asks about his current focus session
 
-## State File
+## Tool reference
 
-All focus sessions are tracked in:
-```
-/opt/data/profiles/accountability/.cron/responsibility_partner/focus_sessions.json
-```
+| Task | Tool to use |
+|---|---|
+| Start session | `focus_session_start(task_name=..., duration_minutes=...)` |
+| Complete session | `focus_session_complete(session_id=..., result=...)` |
+| Check active sessions | `focus_session_status()` → `{active: true, task: "...", remaining_minutes: ...}` |
+| Check specific session | `focus_session_status(session_id="fs-...")` |
 
-Structure:
-```json
-{
-  "active_sessions": [
-    {
-      "id": "focus-YYYYMMDD-N",
-      "task": "Task name or description",
-      "task_id": "optional-task-id-from-daily-summary",
-      "started_at": "ISO-8601 with timezone",
-      "duration_minutes": 120,
-      "end_epoch": 1717514400,
-      "midpoint_epoch": 1717510800,
-      "midpoint_cron_id": "hermes-cron-job-id",
-      "end_cron_id": "hermes-cron-job-id",
-      "midpoint_sent": false,
-      "end_sent": false,
-      "user_responded_midpoint": false,
-      "user_responded_end": false,
-      "status": "active|completed|cancelled|expired"
-    }
-  ],
-  "completed_today": [],
-  "stats": {
-    "total_sessions": 0,
-    "total_minutes": 0,
-    "current_streak": 0
-  }
-}
-```
+These tools manage `focus_sessions.json` automatically — you never need to know the file path.
 
 ## Procedure: Declaring a Focus Session
-
-When Lucas declares a focus session:
 
 ### Step 1: Parse the intent
 Extract:
@@ -70,12 +42,12 @@ Extract:
 - **Duration:** parse from natural language ("2h" → 120min, "1h30" → 90min, "meia hora" → 30min)
 - If no duration specified, ask: "Quanto tempo pretende dedicar?"
 
-### Step 2: Save state
-Write to `focus_sessions.json`. If the file doesn't exist, create it with the full structure.
+### Step 2: Save state via tool
+```
+focus_session_start(task_name="Nome da task", duration_minutes=90)
+```
 
-Calculate epochs:
-- `end_epoch` = now + duration_minutes
-- `midpoint_epoch` = now + (duration_minutes / 2) — only if duration > 60min
+Returns: `{ok: true, session_id: "fs-...", task_name: "...", duration_minutes: 90}`
 
 ### Step 3: Create cron jobs
 
@@ -85,9 +57,9 @@ cronjob(
   action="create",
   schedule="<duration_minutes>m",
   name="focus-end-<id>",
-  prompt="[FOCUS SESSION END] Session: <task> (<duration>min). Check focus_sessions.json for this session. If user hasn't responded yet, ask how it went. If no response after 20min, escalate. Update focus_sessions.json status to completed/expired.",
+  prompt="[FOCUS SESSION END] Session: <task> (<duration>min). Use focus_session_complete to finalize. If no response after 20min, escalate. Respond [SILENT] if user hasn't interacted.",
   deliver="telegram:${TELEGRAM_CHAT_ID}",
-  enabled_toolsets=["file", "send_message"]
+  enabled_toolsets=["file", "send_message", "accountability-tools"]
 )
 ```
 
@@ -97,91 +69,62 @@ cronjob(
   action="create",
   schedule="<duration_minutes/2>m",
   name="focus-mid-<id>",
-  prompt="[FOCUS SESSION MIDPOINT] Session: <task>. Check focus_sessions.json. Ask Lucas if he's still working on it. One question, no pressure. Update midpoint_sent to true.",
+  prompt="[FOCUS SESSION MIDPOINT] Session: <task>. Ask Lucas if he's still working on it. One question, no pressure. Respond [SILENT] if no answer.",
   deliver="telegram:${TELEGRAM_CHAT_ID}",
-  enabled_toolsets=["file", "send_message"]
+  enabled_toolsets=["file", "send_message", "accountability-tools"]
 )
 ```
 
-Save the cron job IDs in the focus session state.
+### Step 4: Update daily summary
+After starting, save via `daily_summary_save` with the updated tasks list — add a focus entry:
+```json
+{"id": "fs-...", "name": "Foco: <task>", "status": "em andamento", "notes": "Focus session: <duration>min, started now", "since": "YYYY-MM-DD"}
+```
 
-### Step 4: Confirm to Lucas
+### Step 5: Confirm to Lucas
 Natural response, one line:
 - "Focado em [task] até ~[hora]. Te cobro lá."
 - "Beleza, [task] por [duração]. Te aviso quando acabar."
 
-### Step 5: Update daily summary
-Add a "focus_session" entry to the daily summary's tasks (or update existing task with focus info):
-```yaml
-- id: focus-<task-id>
-  name: "Foco: <task>"
-  status: em andamento
-  notes: "Focus session: <duration>min, started at <time>"
-  since: 'YYYY-MM-DD'
-```
-
 ## Procedure: Mid-Point Check-In (Cron fires)
 
-When the mid-point cron fires:
-
-1. Read `focus_sessions.json`, find the active session
-2. If `user_responded_midpoint` is already true → respond `[SILENT]`
-3. If session is no longer active → respond `[SILENT]`
-4. Otherwise, send a light check-in:
-   - "Faz 1h. Ainda em [task]?"
-   - "Checkpoint rápido — ainda focando em [task]?"
-5. Update `midpoint_sent` to true in state
+1. Call `focus_session_status()` to get current state
+2. If user already responded or session is no longer active → `[SILENT]`
+3. Otherwise, send a light check-in: "Faz 1h. Ainda em [task]?"
 
 ## Procedure: End-of-Session Check-In (Cron fires)
 
-When the end-of-session cron fires:
-
-1. Read `focus_sessions.json`, find the active session
-2. If `user_responded_end` is already true → respond `[SILENT]`
-3. If session is no longer active → respond `[SILENT]`
-4. Otherwise, send the check-in:
-   - "Tempo de [task] acabou. Como foi?"
-   - "[duration] de [task] — conseguiu avançar?"
-5. Update `end_sent` to true in state
-6. **Do NOT update status yet** — wait for Lucas's response or escalation timeout
+1. Call `focus_session_status()` to get current state
+2. If user already responded or session is no longer active → `[SILENT]`
+3. Otherwise: "Tempo de [task] acabou. Como foi?"
+4. **Do NOT update status yet** — wait for Lucas's response
 
 ## Procedure: Escalation (No response to end check-in)
 
-If Lucas doesn't respond within 20 minutes of the end check-in:
-
-1. Read `focus_sessions.json`
-2. If `user_responded_end` is still false:
-   - Send: "Ei, a sessão de [task] acabou. Conseguiu avançar?"
-3. If still no response after another 20 minutes:
-   - Send: "Preciso fechar o status. [task] estava em andamento. Correto?"
-   - Mark session as `expired` in state
-   - Update daily_summary with status "sem resposta"
+If Lucas doesn't respond within 20 minutes:
+1. Send: "Ei, a sessão de [task] acabou. Conseguiu avançar?"
+2. After another 20 min: mark expired via `focus_session_complete(session_id=..., result="sem resposta")`
+3. Update daily_summary with `daily_summary_save`
 
 ## Procedure: Early Completion
 
 When Lucas says he's done ("terminei", "parei", "concluí", "acabei"):
 
-1. Read `focus_sessions.json`, find active session
-2. Cancel pending cron jobs:
-   ```
-   cronjob(action="remove", job_id="<midpoint_cron_id>")
-   cronjob(action="remove", job_id="<end_cron_id>")
-   ```
-3. Update session status to `completed`
-4. Update daily_summary — change task status to "concluído" if appropriate, or add notes about progress
-5. Respond naturally: "Boa. [task] finalizada."
+1. Cancel pending cron jobs: `cronjob(action="remove", job_id="...")`
+2. Complete via tool: `focus_session_complete(session_id="...", result="Concluído")`
+3. Update daily_summary with `daily_summary_save` — change task status
+4. Respond: "Boa. [task] finalizada."
 
 ## Procedure: Cancellation
 
 When Lucas says to cancel ("deixa pra lá", "não vou mais", "cancela"):
 
-1. Same as early completion but status = `cancelled`
-2. Update daily_summary — note the cancellation
-3. Respond: "OK, [task] cancelada."
+1. Same as early completion but pass empty result
+2. Respond: "OK, [task] cancelada."
 
 ## Pitfalls
 
-- **Do NOT use `~` in paths.** Always use `/opt/data/profiles/accountability/.cron/responsibility_partner/`
+- **Do NOT read/write focus_sessions.json directly.** Use `focus_session_start` / `focus_session_complete`.
 - **Do NOT create focus sessions without duration.** Always ask if not specified.
 - **Do NOT interrupt focus sessions with regular check-ins.** The SOUL.md marks focus sessions as "do not interrupt" periods.
 - **Cancel cron jobs on early completion.** Stale cron jobs firing after Lucas already finished is confusing.

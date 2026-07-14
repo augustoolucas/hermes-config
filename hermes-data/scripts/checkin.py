@@ -247,17 +247,6 @@ def load_last_available_summary(days_back=7, start_offset=1):
     return None, None
 
 
-def load_week_summaries():
-    """Carrega resumos dos últimos 7 dias."""
-    summaries = []
-    for i in range(7):
-        d = (datetime.now(TZ) - timedelta(days=i)).strftime("%Y-%m-%d")
-        s = load_daily_summary(d)
-        if s:
-            summaries.append(s)
-    return summaries
-
-
 def load_last_active_date(days_back=14, start_offset=1):
     """Busca o último dia com atividade real (tasks ou summary_text não-genérico).
     Retorna (days_ago, date_str, summary) ou (None, None, None)."""
@@ -866,15 +855,17 @@ def main():
                 prev_summary["metrics"] = metrics
                 save_daily_summary(prev_date, prev_summary)
 
-        state = {"date": today, "windows": {}, "weekly_report_sent": state.get("weekly_report_sent", {})}
+        state = {"date": today, "windows": {}}
         today_midnight = now_brt.replace(hour=0, minute=0, second=0, microsecond=0)
         for w in (1, 2, 3):
             scheduled = random_epoch_in_window(w, today_midnight)
             marker = f"RESP-W{w}-{today}-{random.randint(1000,9999)}"
             state["windows"][str(w)] = {
                 "scheduled_epoch": scheduled,
+                "checkin_emitted_at": None,
                 "checkin_sent_at": None,
                 "user_responded_at": None,
+                "followup_emitted_at": None,
                 "followup_action": None,   # "sent" | "skipped" | "expired"
                 "followup_sent_at": None,
                 "escalation_sent": None,    # "escalation_1" | "escalation_2" | null
@@ -906,20 +897,6 @@ def main():
             }))
             return
 
-    # ── Relatório semanal (Sexta 18:00) ─────────────────────────────
-    if weekday == 4 and now_brt.hour == 18 and now_brt.minute == 0:
-        week_key = now_brt.strftime("%Y-W%W")
-        if not state.get("weekly_report_sent", {}).get(week_key):
-            summaries = load_week_summaries()
-            if summaries:
-                print(json.dumps({
-                    "action": "generate_weekly_report",
-                    "week_key": week_key,
-                    "date": today,
-                    "summary_count": len(summaries),
-                }))
-                return
-
     # ── Check-ins e Follow-ups ──────────────────────────────────────
     windows = state.get("windows", {})
 
@@ -931,8 +908,10 @@ def main():
 
         scheduled = ws.get("scheduled_epoch")
         sent_at = ws.get("checkin_sent_at")
+        emitted_at = ws.get("checkin_emitted_at")
         responded_at = ws.get("user_responded_at")
         followup_action = ws.get("followup_action")
+        followup_emitted_at = ws.get("followup_emitted_at")
         escalation_sent = ws.get("escalation_sent")
         marker = ws.get("marker")
 
@@ -941,7 +920,22 @@ def main():
             continue
 
         # ── Check-in ──────────────────────────────────────────────
-        if not sent_at and scheduled <= now_epoch < scheduled + CHECKIN_WINDOW_SEC:
+        window_closed = now_epoch >= scheduled + CHECKIN_WINDOW_SEC
+        in_window = scheduled <= now_epoch < scheduled + CHECKIN_WINDOW_SEC
+
+        # Se a janela já fechou e emitimos mas sem confirmação,
+        # marca sent_at retroativamente pra destravar follow-ups
+        if window_closed and emitted_at and not sent_at:
+            ws["checkin_sent_at"] = emitted_at
+            save_state(state)
+            print(json.dumps({"action": "none", "reason": "window_closed_unconfirmed"}))
+            print(json.dumps({"wakeAgent": False}))
+            return
+
+        if in_window:
+            if sent_at:
+                continue  # já confirmado, não re-emite
+
             # Se Lucas está em focus session, pula check-in regular
             if is_in_focus_session():
                 ws["followup_action"] = "skipped"
@@ -950,124 +944,155 @@ def main():
                 print(json.dumps({"wakeAgent": False}))
                 return
 
-            templates = MSG_CHECKIN[w_int]
-            if w_int == 1:
-                # W1: busca o último daily_summary em até 7 dias
-                last_date, yesterday = load_last_available_summary(days_back=7, start_offset=1)
+            if not emitted_at:
+                # Primeira emissão: gera mensagem com contexto completo
+                ws["checkin_emitted_at"] = now_epoch
+                save_state(state)
 
-                # Verifica se existe plano de ontem para hoje
-                yesterday_plan = load_yesterday_plan(today)
+                templates = MSG_CHECKIN[w_int]
+                if w_int == 1:
+                    # W1: busca o último daily_summary em até 7 dias
+                    last_date, yesterday = load_last_available_summary(days_back=7, start_offset=1)
+                    yesterday_plan = load_yesterday_plan(today)
 
-                if yesterday_plan and yesterday and yesterday.get("summary_text"):
-                    last_dt = datetime.strptime(last_date, "%Y-%m-%d").replace(tzinfo=TZ)
-                    yesterday_dt = now_brt - timedelta(days=1)
-                    if last_date == yesterday_dt.strftime("%Y-%m-%d"):
-                        date_label = "ontem"
+                    if yesterday_plan and yesterday and yesterday.get("summary_text"):
+                        last_dt = datetime.strptime(last_date, "%Y-%m-%d").replace(tzinfo=TZ)
+                        yesterday_dt = now_brt - timedelta(days=1)
+                        if last_date == yesterday_dt.strftime("%Y-%m-%d"):
+                            date_label = "ontem"
+                        else:
+                            dias_semana = ["segunda-feira", "terça-feira", "quarta-feira",
+                                           "quinta-feira", "sexta-feira", "sábado", "domingo"]
+                            date_label = f"{dias_semana[last_dt.weekday()]}, {last_dt.strftime('%d/%m')}"
+                        msg = templates["with_yesterday_plan"].format(
+                            date_label=date_label,
+                            summary=yesterday["summary_text"],
+                            yesterday_plan=yesterday_plan,
+                        )
+                    elif yesterday and yesterday.get("summary_text"):
+                        last_dt = datetime.strptime(last_date, "%Y-%m-%d").replace(tzinfo=TZ)
+                        yesterday_dt = now_brt - timedelta(days=1)
+                        if last_date == yesterday_dt.strftime("%Y-%m-%d"):
+                            date_label = "ontem"
+                        else:
+                            dias_semana = ["segunda-feira", "terça-feira", "quarta-feira",
+                                           "quinta-feira", "sexta-feira", "sábado", "domingo"]
+                            date_label = f"{dias_semana[last_dt.weekday()]}, {last_dt.strftime('%d/%m')}"
+                        msg = templates["with_context"].format(
+                            date_label=date_label,
+                            summary=yesterday["summary_text"],
+                        )
                     else:
-                        dias_semana = ["segunda-feira", "terça-feira", "quarta-feira",
-                                       "quinta-feira", "sexta-feira", "sábado", "domingo"]
-                        date_label = f"{dias_semana[last_dt.weekday()]}, {last_dt.strftime('%d/%m')}"
-                    msg = templates["with_yesterday_plan"].format(
-                        date_label=date_label,
-                        summary=yesterday["summary_text"],
-                        yesterday_plan=yesterday_plan,
-                    )
-                elif yesterday and yesterday.get("summary_text"):
-                    last_dt = datetime.strptime(last_date, "%Y-%m-%d").replace(tzinfo=TZ)
-                    yesterday_dt = now_brt - timedelta(days=1)
-                    if last_date == yesterday_dt.strftime("%Y-%m-%d"):
-                        date_label = "ontem"
-                    else:
-                        dias_semana = ["segunda-feira", "terça-feira", "quarta-feira",
-                                       "quinta-feira", "sexta-feira", "sábado", "domingo"]
-                        date_label = f"{dias_semana[last_dt.weekday()]}, {last_dt.strftime('%d/%m')}"
-                    msg = templates["with_context"].format(
-                        date_label=date_label,
-                        summary=yesterday["summary_text"],
-                    )
+                        streak = build_streak_context()
+                        msg = templates["no_context"].format(streak_context=streak)
+
+                    stale_tasks = check_stale_tasks(today, now_brt)
+                    if stale_tasks:
+                        msg += format_stale_tasks_message(stale_tasks)
                 else:
-                    streak = build_streak_context()
-                    msg = templates["no_context"].format(streak_context=streak)
+                    today_summary = load_daily_summary(today)
+                    today_intention = build_intention_context(today)
+                    if not today_summary:
+                        _, today_summary = load_last_available_summary(days_back=7, start_offset=1)
+                    if today_summary and (today_summary.get("tasks") or today_summary.get("tasks_discussed")):
+                        tasks_list = today_summary.get("tasks") or today_summary.get("tasks_discussed") or []
+                        tasks_lines = []
+                        for t in tasks_list:
+                            desc = t.get("name") or t.get("desc", "?")
+                            status = t.get("status", "?")
+                            tasks_lines.append(f"• {desc} → {status}")
+                        today_plan = "\n".join(tasks_lines)
+                        msg = templates["with_context"].format(today_plan=today_plan, today_intention=today_intention)
+                    else:
+                        streak = build_streak_context()
+                        msg = templates["no_context"].format(streak_context=streak)
 
-                # Task stale detection no W1
-                stale_tasks = check_stale_tasks(today, now_brt)
-                if stale_tasks:
-                    msg += format_stale_tasks_message(stale_tasks)
+                prev_w = str(w_int - 1)
+                if prev_w in windows:
+                    pw = windows[prev_w]
+                    if pw.get("checkin_sent_at") and not pw.get("user_responded_at") and pw.get("followup_action") != "skipped":
+                        msg += MSG_MISSED_RECAP
+
+                print(json.dumps({
+                    "action": "send_checkin",
+                    "window": w_int,
+                    "message": msg,
+                    "marker": marker,
+                }))
+                return
 
             else:
-                # W2 e W3 — carrega resumo do dia para contexto
-                today_summary = load_daily_summary(today)
-                # Intenção do dia
-                today_intention = build_intention_context(today)
-                # Fallback: se não tem do dia, busca o último disponível
-                if not today_summary:
-                    _, today_summary = load_last_available_summary(days_back=7, start_offset=1)
-                if today_summary and (today_summary.get("tasks") or today_summary.get("tasks_discussed")):
-                    tasks_list = today_summary.get("tasks") or today_summary.get("tasks_discussed") or []
-                    tasks_lines = []
-                    for t in tasks_list:
-                        desc = t.get("name") or t.get("desc", "?")
-                        status = t.get("status", "?")
-                        tasks_lines.append(f"• {desc} → {status}")
-                    today_plan = "\n".join(tasks_lines)
-                    msg = templates["with_context"].format(today_plan=today_plan, today_intention=today_intention)
-                else:
-                    streak = build_streak_context()
-                    msg = templates["no_context"].format(streak_context=streak)
+                # Verifica se Lucas já respondeu via live agent enquanto o LLM falhava
+                if emitted_at and not responded_at:
+                    today_summary = load_daily_summary(today)
+                    if today_summary and (today_summary.get("tasks") or today_summary.get("summary_text")):
+                        ds_path = f"{SUMMARY_PREFIX}_{today}.md"
+                        try:
+                            if os.path.getmtime(ds_path) > emitted_at:
+                                ws["user_responded_at"] = now_epoch
+                                ws["checkin_sent_at"] = emitted_at
+                                save_state(state)
+                                continue
+                        except OSError:
+                            pass
 
-            # Recap de janela anterior não respondida
-            prev_w = str(w_int - 1)
-            if prev_w in windows:
-                pw = windows[prev_w]
-                if pw.get("checkin_sent_at") and not pw.get("user_responded_at") and pw.get("followup_action") != "skipped":
-                    msg += MSG_MISSED_RECAP
-
-            ws["checkin_sent_at"] = now_epoch
-            save_state(state)
-
-            print(json.dumps({
-                "action": "send_checkin",
-                "window": w_int,
-                "message": msg,
-                "marker": marker,
-            }))
-            return
+                # Re-emissão dentro da janela: LLM falhou nas tentativas anteriores
+                # Mensagem simples sem contexto (já foi enviado na primeira tentativa)
+                ws["checkin_emitted_at"] = now_epoch
+                save_state(state)
+                print(json.dumps({
+                    "action": "send_checkin",
+                    "window": w_int,
+                    "message": MSG_CHECKIN[w_int]["no_context"].format(streak_context=build_streak_context()),
+                    "marker": marker,
+                    "retry": True,
+                }))
+                return
 
         # ── Auto-fill user_responded_at via daily_summary ─────────
         # Se Lucas já respondeu (daily_summary foi modificado depois do envio),
-        # marca como respondido para evitar follow-up desnecessário.
-        if sent_at and not responded_at:
+        # marca como respondido para evitar retry/follow-up desnecessário.
+        last_action = sent_at or emitted_at
+        if last_action and not responded_at:
             today_summary = load_daily_summary(today)
             if today_summary and (today_summary.get("tasks") or today_summary.get("summary_text")):
                 ds_path = f"{SUMMARY_PREFIX}_{today}.md"
                 try:
-                    if os.path.getmtime(ds_path) > sent_at:
+                    if os.path.getmtime(ds_path) > last_action:
                         ws["user_responded_at"] = now_epoch
                         save_state(state)
                 except OSError:
                     pass
 
         # ── Follow-up ─────────────────────────────────────────────
-        if sent_at and not responded_at and not followup_action:
-            followup_start = sent_at + FOLLOWUP_DELAY_SEC
-            if followup_start <= now_epoch < followup_start + FOLLOWUP_WINDOW_SEC:
-                ws["followup_action"] = "sent"
-                ws["followup_sent_at"] = now_epoch
-                save_state(state)
-                print(json.dumps({
-                    "action": "send_followup",
-                    "window": w_int,
-                    "message": MSG_FOLLOWUP,
-                    "marker": marker,
-                }))
-                return
-            elif now_epoch >= followup_start + FOLLOWUP_WINDOW_SEC:
-                ws["followup_action"] = "expired"
-                save_state(state)
+        window_closed = now_epoch >= scheduled + CHECKIN_WINDOW_SEC
+        last_followup_trigger = sent_at or emitted_at
+        if last_followup_trigger and not responded_at:
+            if not followup_emitted_at and not followup_action:
+                followup_start = last_followup_trigger + FOLLOWUP_DELAY_SEC
+                if followup_start <= now_epoch < followup_start + FOLLOWUP_WINDOW_SEC:
+                    # Emite sem marcar "sent" — cron agent marca após entrega
+                    ws["followup_emitted_at"] = now_epoch
+                    save_state(state)
+                    print(json.dumps({
+                        "action": "send_followup",
+                        "window": w_int,
+                        "message": MSG_FOLLOWUP,
+                        "marker": marker,
+                    }))
+                    return
+                elif now_epoch >= followup_start + FOLLOWUP_WINDOW_SEC:
+                    # Janela de follow-up fechou sem confirmação
+                    if followup_emitted_at:
+                        ws["followup_action"] = "sent"  # tentamos, assume entregue
+                    else:
+                        ws["followup_action"] = "expired"
+                    save_state(state)
 
         # ── Escalação W3 (end-of-day obrigatório) ─────────────────
-        if w_int == 3 and sent_at and not responded_at and followup_action == "expired" and not escalation_sent:
-            escalation_start = sent_at + FOLLOWUP_DELAY_SEC + FOLLOWUP_WINDOW_SEC + ESCALATION_DELAY_SEC
+        last_trigger = sent_at or emitted_at
+        if w_int == 3 and last_trigger and not responded_at and followup_action in ("sent", "expired") and not escalation_sent:
+            escalation_start = last_trigger + FOLLOWUP_DELAY_SEC + FOLLOWUP_WINDOW_SEC + ESCALATION_DELAY_SEC
             if escalation_start <= now_epoch < escalation_start + FOLLOWUP_WINDOW_SEC:
                 # Primeira escalação
                 ws["escalation_sent"] = "escalation_1"

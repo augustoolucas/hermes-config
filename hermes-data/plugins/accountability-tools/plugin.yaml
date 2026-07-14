@@ -1,0 +1,4 @@
+name: accountability-tools
+version: 1.0.0
+kind: tool
+description: "Tools for reading and writing accountability data (daily summaries, focus sessions). Encapsulates path logic in one place so the agent never needs to know where files live."

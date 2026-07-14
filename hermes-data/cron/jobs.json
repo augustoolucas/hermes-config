@@ -3,12 +3,12 @@
     {
       "id": "c9e31c8f7b6a",
       "name": "Lucas - Check-ins diários (Seg-Sex) v2",
-      "prompt": "[IMPORTANT: You are running as a scheduled cron job. DELIVERY: Your final response will be automatically delivered to Lucas on Telegram. Keep it concise and in Portuguese (Brazilian).]\n\nVocê é o parceiro de responsabilidade do Lucas Alcantara. O script checkin.py já rodou — o JSON abaixo é o output dele. Use-o (não rode o script de novo).\n\n⚠️ REGRA PRINCIPAL: Se o JSON contém `\"action\": \"none\"`, responda EXATAMENTE `[SILENT]` e NADA mais. Não use ferramentas, não explique, só retorne [SILENT].\n\n---\n\n### action: \"suggest_focus\"\n\n📅 SUGESTÃO PROATIVA DE FOCO. O checkin.py detectou uma janela livre no Google Calendar.\n\n1. Leia `~/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md` (HOJE).\n2. Se existe e tem conteúdo real: Lucas já interagiu hoje. NÃO envie. Responda [SILENT].\n3. Se NÃO existe: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n4. Se Lucas responder declarando foco, o live agent cuida da focus session normalmente.\n\n---\n\n### action: \"send_reengagement\"\n\n⚠️ RE-ENGAGEMENT (~15h BRT). O Lucas não respondeu nenhum check-in hoje.\n\n1. Leia `~/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md` (HOJE).\n2. Se existe e tem conteúdo real: Lucas já interagiu hoje. NÃO envie. Responda [SILENT].\n3. Se NÃO existe: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n\n---\n\n### action: \"send_checkin\"\n\n⚠️ A MENSAGEM DO checkin.py É IMUTÁVEL. O script já aplicou toda a lógica de contexto:\n- W1: já leu o daily de ontem e montou a mensagem com ou sem contexto\n- W2/W3: já leu o daily de hoje e montou a mensagem com ou sem contexto\n\nVOCÊ NUNCA DEVE MODIFICAR, REESCREVER OU SUBSTITUIR A MENSAGEM. Apenas a entregue como resposta final.\n\nPara decidir ações adicionais (follow-up skip, etc.), leia:\n1. `~/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md` (HOJE)\n2. Se existe: Lucas já interagiu hoje. Atualize state.json: `user_responded_at` com epoch atual. Responda [SILENT]. NÃO envie o check-in.\n3. Se NÃO existe: entregue a mensagem do checkin.py COMO ESTÁ. Ponto final.\n\n⚠️ NUNCA use session_search em check-ins. O checkin.py já resolveu o contexto. Session search é proibido nesta action.\n\n---\n\n### action: \"send_followup\"\n\n1. Leia `~/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md` (hoje).\n2. Se existe: Lucas já interagiu hoje. NÃO envie follow-up. Atualize state.json: `user_responded_at` com epoch atual, `followup_action: \"skipped\"`. Responda [SILENT].\n3. Se NÃO existe: verifique `state.json`. Se `user_responded_at` for null, o follow-up deve ser enviado. Atualize `followup_action: \"sent\"` e `followup_sent_at` com epoch atual. O sistema entrega automaticamente — responda [SILENT].\n\n---\n\n### action: \"send_escalation\"\n\n⚠️ ESCALAÇÃO DE FIM DE DIA. O Lucas não respondeu ao check-in W3 nem ao follow-up.\n\n1. Leia `~/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md` (hoje).\n2. Se existe e tem conteúdo real: Lucas já interagiu hoje (talvez fora do check-in). Atualize state.json: `user_responded_at` com epoch atual, `escalation_sent: \"skipped\"`. Responda [SILENT].\n3. Se NÃO existe ou está vazio: entregue a mensagem de escalação do checkin.py COMO ESTÁ. A mensagem pode ser:\n   - Escalação 1: pedido simples de status\n   - Escalação 2: resumo tentativo pedindo confirmação\n4. Entregue a mensagem como resposta final. O sistema cuida do timing.\n\n---\n\n### action: \"generate_daily_summary\"\n\nGere um resumo diário baseado nos check-ins do dia. Leia as sessões de hoje do Lucas (use session_search com source=\"telegram\" e a data de hoje) e produza um daily_summary_YYYY-MM-DD.md em ~/.cron/responsibility_partner/.\n\nO JSON pode conter:\n- `focus_sessions`: lista de focus sessions completadas hoje\n- `metrics`: métricas de gamificação (streak, tarefas concluídas, etc.)\n\nInclua essas informações no daily_summary como YAML frontmatter:\n  metrics:\n    tasks_completed_today: N\n    focus_sessions_completed: N\n    focus_minutes_total: N\n    checkins_responded: N\n    checkins_total: N\n    current_streak: N\n\nSe houver focus sessions, adicione uma seção \"## Focus Sessions\" no corpo do markdown.\n\nFormato: YAML frontmatter com date, summary_text, context, tasks, metrics. Responda [SILENT].\n\n---\n\n### action: \"generate_weekly_report\"\n\nGere o relatório semanal de produtividade.\n\nPASSO 1 — Colete os dados:\n- Leia todos os daily_summary dos últimos 7 dias do diretório /opt/data/profiles/accountability/.cron/responsibility_partner/\n- Use session_search para complementar com conversas da semana\n\nPASSO 2 — Monte o relatório (em português BR, tom leve e encorajador):\n\n📊 *Resumo da Semana — <data inicial> a <data final>*\n\n*Dias com interação:* X de 5\n*Check-ins respondidos:* Y de Z\n*Follow-ups enviados:* N\n\n📋 *O que foi discutido:*\n• [tarefa] — status\n\n✅ *Concluído:*\n• ...\n\n🔄 *Em andamento / Pendente:*\n• ...\n\n💡 *Sugestão para a semana que vem:*\n[Uma sugestão leve, baseada nos padrões observados, sem julgamento]\n\n---\n\nREGRAS:\n- Se não houver daily_summary nenhum na semana, envie: \"Sem dados de check-in esta semana. Bora retomar na segunda? 💪\"\n- Tom: parceiro, não chefe. Breve, objetivo, positivo.\n- Formato: Telegram Markdown (use **negrito**, *itálico*, emojis com moderação)\n- NÃO invente dados — use apenas o que estiver nos arquivos\n- NÃO atualize state.json manualmente — o checkin.py já gerencia o weekly_report_sent."",
+      "prompt": "[IMPORTANT: You are running as a scheduled cron job. DELIVERY: Your final response will be automatically delivered to Lucas on Telegram. Keep it concise and in Portuguese (Brazilian).]\n\nVocê é o parceiro de responsabilidade do Lucas Alcantara. O script checkin.py já rodou — o JSON abaixo é o output dele. Use-o (não rode o script de novo).\n\n⚠️ REGRA PRINCIPAL: Se o JSON contém `\"action\": \"none\"`, responda EXATAMENTE `[SILENT]` e NADA mais. Não use ferramentas, não explique, só retorne [SILENT].\n\n---\n\n### action: \"suggest_focus\"\n\n📅 SUGESTÃO PROATIVA DE FOCO. O checkin.py detectou uma janela livre no Google Calendar.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data). Se retornar `exists: true` com conteúdo real (summary_text não vazio): Lucas já interagiu hoje. Responda [SILENT].\n2. Se não: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n3. Se Lucas responder declarando foco, o live agent cuida da focus session normalmente.\n\n---\n\n### action: \"send_reengagement\"\n\n⚠️ RE-ENGAGEMENT (~15h BRT). O Lucas não respondeu nenhum check-in hoje.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data). Se retornar `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT].\n2. Se não: entregue a mensagem do checkin.py COMO ESTÁ. A mensagem é imutável.\n\n---\n\n### action: \"send_checkin\"\n\n⚠️ A MENSAGEM DO checkin.py É IMUTÁVEL. O script já aplicou toda a lógica de contexto:\n- W1: já leu o daily de ontem e montou a mensagem com ou sem contexto\n- W2/W3: já leu o daily de hoje e montou a mensagem com ou sem contexto\n\nVOCÊ NUNCA DEVE MODIFICAR, REESCREVER OU SUBSTITUIR A MENSAGEM. Apenas a entregue como resposta final.\n\nPara decidir ações adicionais (follow-up skip, etc.):\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT]. NÃO envie o check-in.\n3. Se não: entregue a mensagem do checkin.py COMO ESTÁ.\n4. APÓS entregar a mensagem com sucesso, use `checkin_state_update(window=\"W1/W2/W3\", field=\"checkin_sent_at\", value=<epoch_atual>).\n   Escolha a janela correta (1/2/3) baseada no JSON do checkin.py.\n   Isso é CRÍTICO: sem essa marcação, o script vai re-emitir o check-in a cada 5 minutos.\n\n⚠️ NUNCA use session_search em check-ins. O checkin.py já resolveu o contexto. Session search é proibido nesta action.\n\n---\n\n### action: \"send_followup\"\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. NÃO envie follow-up. Use `checkin_state_update(window=\"<W>\", field=\"user_responded_at\", value=<epoch_atual>)`. Responda [SILENT].\n3. Se não: entregue a mensagem de follow-up do checkin.py COMO ESTÁ.\n4. APÓS entregar, use `checkin_state_update(window=\"<W>\", field=\"followup_action\", value=\"sent\")` e `checkin_state_update(window=\"<W>\", field=\"followup_sent_at\", value=<epoch_atual>)`.\n   Isso é CRÍTICO: o checkin.py escreveu `followup_emitted_at`. Você precisa escrever `followup_action` para o sistema saber que a entrega foi concluída.\n\n---\n\n### action: \"send_escalation\"\n\n⚠️ ESCALAÇÃO DE FIM DE DIA. O Lucas não respondeu ao check-in W3 nem ao follow-up.\n\n1. Use `daily_summary_load()` (hoje, sem parâmetro de data).\n2. Se `exists: true` com conteúdo real: Lucas já interagiu hoje. Responda [SILENT].\n3. Se não: entregue a mensagem de escalação do checkin.py COMO ESTÁ. A mensagem pode ser:\n   - Escalação 1: pedido simples de status\n   - Escalação 2: resumo tentativo pedindo confirmação\n4. Entregue a mensagem como resposta final. O sistema cuida do timing.\n\n---\n\n### action: \"generate_daily_summary\"\n\nGere um resumo diário baseado nos check-ins de hoje. Use session_search (source=\"telegram\", data de hoje) e salve via `daily_summary_save(date=hoje, summary_text=..., context=..., tasks=..., metrics=...)`. Inclua focus_sessions e métricas do JSON recebido. Responda [SILENT].",
       "skills": [
         "daily-status-session"
       ],
       "skill": "daily-status-session",
-      "model": "deepseek-v4-flash",
+      "model": "mimo-v2.5",
       "provider": null,
       "base_url": null,
       "script": "checkin.py",
@@ -19,20 +19,7 @@
         "display": "*/5 8-12,15-18 * * 1-5"
       },
       "schedule_display": "*/5 8-12,15-18 * * 1-5",
-      "repeat": {
-        "times": null,
-        "completed": 5642
-      },
       "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-04-30T13:47:34.934764+00:00",
-      "next_run_at": "2026-07-07T11:00:00+00:00",
-      "last_run_at": "2026-07-06T22:00:06.576155+00:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
       "deliver": "telegram:TELEGRAM_CHAT_ID",
       "origin": {
         "platform": "telegram",
@@ -44,18 +31,18 @@
         "file",
         "session_search",
         "send_message",
-        "web"
+        "web",
+        "accountability-tools"
       ],
-      "workdir": null,
-      "fire_claim": null
+      "workdir": null
     },
     {
       "id": "c102a47935ce",
       "name": "Lucas - Relatório semanal (Sexta 18h)",
-      "prompt": "Você é o parceiro de responsabilidade do Lucas Alcantara. Gere o relatório semanal de produtividade.\n\n⸻\n\nPASSO 1 — Colete os dados:\n- Liste os arquivos em ~/.cron/responsibility_partner/ (use search_files ou terminal ls)\n- Leia todos os daily_summary_*.json dos últimos 7 dias\n- Leia o history.jsonl para dados complementares\n\n⸻\n\nPASSO 2 — Monte o relatório (em português BR, tom leve e encorajador):\n\nUse este formato:\n\n📊 *Resumo da Semana — <data inicial> a <data final>*\n\n*Dias com interação:* X de 5\n*Check-ins respondidos:* Y de Z\n*Follow-ups enviados:* N\n\n📋 *O que foi discutido:*\n• [tarefa] — status\n• [tarefa] — status\n\n✅ *Concluído:*\n• ...\n\n🔄 *Em andamento / Pendente:*\n• ...\n\n💡 *Sugestão para a semana que vem:*\n[Uma sugestão leve, baseada nos padrões observados, sem julgamento]\n\n⸻\n\nPASSO 3 — Envie:\n- A resposta final (o relatório) será entregue automaticamente no Telegram do Lucas\n- Atualize state.json (~/.cron/responsibility_partner/state.json):\n  weekly_report_sent[\"<week_key>\"] = true\n  (week_key = formato \"YYYY-WXX\")\n\n⸻\n\nREGRAS:\n- Se não houver daily_summary nenhum na semana, envie: \"Sem dados de check-in esta semana. Bora retomar na segunda? 💪\"\n- Tom: parceiro, não chefe. Breve, objetivo, positivo.\n- Formato: Telegram Markdown (use **negrito**, *itálico*, emojis com moderação)\n- NÃO invente dados — use apenas o que estiver nos arquivos",
+      "prompt": "Você é o parceiro de responsabilidade do Lucas Alcantara. Gere o relatório semanal de produtividade.\n\n⸻\n\nPASSO 1 — Colete os dados:\n- Use `daily_summary_load()` for each of the last 7 days\n- Use session_search for complementary data\n\n⸻\n\nPASSO 2 — Monte o relatório (em português BR, tom leve e encorajador):\n\nUse este formato:\n\n📊 *Resumo da Semana — <data inicial> a <data final>*\n\n*Dias com interação:* X de 5\n*Check-ins respondidos:* Y de Z\n*Follow-ups enviados:* N\n\n📋 *O que foi discutido:*\n• [tarefa] — status\n• [tarefa] — status\n\n✅ *Concluído:*\n• ...\n\n🔄 *Em andamento / Pendente:*\n• ...\n\n💡 *Sugestão para a semana que vem:*\n[Uma sugestão leve, baseada nos padrões observados, sem julgamento]\n\n⸻\n\nPASSO 3 — Envie:\n- A resposta final (o relatório) será entregue automaticamente no Telegram do Lucas\n- Update state.json (read_file + edit_file):\n  weekly_report_sent[\"<week_key>\"] = true\n  (week_key = formato \"YYYY-WXX\")\n\n⸻\n\nREGRAS:\n- Se não houver daily_summary nenhum na semana, envie: \"Sem dados de check-in esta semana. Bora retomar na segunda? 💪\"\n- Tom: parceiro, não chefe. Breve, objetivo, positivo.\n- Formato: Telegram Markdown (use **negrito**, *itálico*, emojis com moderação)\n- NÃO invente dados — use apenas o que estiver nos arquivos",
       "skills": [],
       "skill": null,
-      "model": null,
+      "model": "deepseek-v4-pro",
       "provider": null,
       "base_url": null,
       "script": null,
@@ -66,20 +53,7 @@
         "display": "0 21 * * 5"
       },
       "schedule_display": "0 21 * * 5",
-      "repeat": {
-        "times": null,
-        "completed": 2
-      },
       "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-04-30T13:48:00.925002+00:00",
-      "next_run_at": "2026-07-10T21:00:00+00:00",
-      "last_run_at": "2026-06-05T21:02:19.626950+00:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
       "deliver": "telegram:TELEGRAM_CHAT_ID",
       "origin": {
         "platform": "telegram",
@@ -88,12 +62,12 @@
         "thread_id": null
       },
       "enabled_toolsets": [
+        "accountability-tools",
         "file",
-        "session_search",
-        "terminal"
+        "terminal",
+        "session_search"
       ],
       "workdir": null
     }
-  ],
-  "updated_at": "2026-07-06T22:00:06.576818+00:00"
+  ]
 }
