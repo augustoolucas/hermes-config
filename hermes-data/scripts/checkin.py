@@ -160,6 +160,9 @@ HOLIDAYS = {
     "2026-11-15",  # Proclamação da República
     "2026-11-20",  # Consciência Negra
     "2026-12-25",  # Natal
+    # Locais / Emendas
+    "2026-07-16",  # Emenda
+    "2026-07-17",  # Feriado
     # Estaduais — Pernambuco
     "2026-03-06",  # Data Magna de Pernambuco
     "2026-06-24",  # São João
