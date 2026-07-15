@@ -70,6 +70,33 @@ else
 fi
 
 echo ""
+echo "=== validate: state machine transitions ==="
+if python3 tests/test_state_machine.py 2>&1; then
+    echo -e "  ${GREEN}OK${NC} state machine transitions correct"
+else
+    echo -e "  ${RED}FAIL${NC} state machine test failed"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
+echo "=== validate: tool output format compatibility ==="
+if python3 tests/test_tool_format.py 2>&1; then
+    echo -e "  ${GREEN}OK${NC} tool outputs match consumer expectations"
+else
+    echo -e "  ${RED}FAIL${NC} tool format test failed"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
+echo "=== validate: sensitive data audit ==="
+if bash tests/test_sensitive_data.sh 2>&1; then
+    echo -e "  ${GREEN}OK${NC} no sensitive data leaks"
+else
+    echo -e "  ${RED}FAIL${NC} sensitive data found"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo -e "${GREEN}All validation checks passed.${NC}"
     exit 0
