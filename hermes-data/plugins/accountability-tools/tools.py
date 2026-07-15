@@ -50,6 +50,9 @@ def handle_daily_summary_load(args, **_kw):
 
 def handle_daily_summary_save(args, **_kw):
     date = args.get("date") or _today()
+    today_str = _today()
+    if date != today_str:
+        return {"ok": False, "error": f"date must be today ({today_str}), not {date}. Use daily_summary_save without a date parameter to always write to today's file."}
     path = _mkpath(date)
     tmp = path + ".tmp"
 

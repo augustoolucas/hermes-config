@@ -961,6 +961,7 @@ def main():
             if not emitted_at:
                 # Primeira emissão: gera mensagem com contexto completo
                 ws["checkin_emitted_at"] = now_epoch
+                ws["checkin_sent_at"] = now_epoch
                 save_state(state)
 
                 templates = MSG_CHECKIN[w_int]
@@ -1085,8 +1086,9 @@ def main():
             if not followup_emitted_at and not followup_action:
                 followup_start = last_followup_trigger + FOLLOWUP_DELAY_SEC
                 if followup_start <= now_epoch < followup_start + FOLLOWUP_WINDOW_SEC:
-                    # Emite sem marcar "sent" — cron agent marca após entrega
                     ws["followup_emitted_at"] = now_epoch
+                    ws["followup_action"] = "sent"
+                    ws["followup_sent_at"] = now_epoch
                     save_state(state)
                     print(json.dumps({
                         "action": "send_followup",
