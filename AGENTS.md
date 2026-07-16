@@ -10,7 +10,7 @@
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Full deploy: runs validate.sh → copies files to container → restarts |
-| `cd hermes-data && bash tests/validate.sh` | Run test suite (12 checks) |
+| `cd hermes-data && bash tests/validate.sh` | Run test suite (9 checks) |
 | `tools/hermes-exec <cmd>` | Docker exec hermes wrapper |
 | `docker exec hermes hermes -p accountability cron list` | Check cron scheduler status |
 | `docker exec -u hermes hermes python3 -c '...'` | Inspect state in container |
@@ -75,8 +75,23 @@ tools.py (accountability-tools plugin)
 
 ## Current health
 
-- 12 validation checks (tests/validate.sh)
+- 9 validation checks (tests/validate.sh)
 - 6 tools (tools.py)
 - 6 skills (SKILL.md files)
 - Single-turn cron prompt (593 chars)
 - 3 checkin windows (W1/W2/W3) with 30-45 min grace periods
+
+## Feature implementation checklist
+
+When adding a new feature, update these files if applicable:
+
+| Change | Files to update |
+|---|---|
+| New tool | `tools.py` + `__init__.py` + mention in `SOUL.md` + reference in `jobs.json` |
+| New skill | `skills/productivity/<name>/SKILL.md` + `SOUL.md` skills table + `deploy.sh` cp block |
+| New checkin.py behavior | `jobs.json` (if cron agent needs new instruction) + `ACCOUNTABILITY-FLOW.md` (if flow changes) |
+| New validation check | `tests/validate.sh` + reference in `deploy.sh` pre-deploy block + `validate-docs.sh` (if counts change) |
+| State field changes (state.json / focus_sessions.json) | `checkin.py` consumers + `tools.py` producers + consumer cross-ref in hermes-dev skill |
+| Path / env var changes | `deploy.sh` + `AGENTS.md` config table + `docker-compose.yaml` (if new env var) |
+
+Post-implementation: run `hermes-data/tests/validate.sh` before commit. The `validate-docs.sh` check auto-verifies tool/skill/check counts match AGENTS.md.
