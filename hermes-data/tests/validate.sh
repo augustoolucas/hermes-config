@@ -97,6 +97,17 @@ else
 fi
 
 echo ""
+echo "=== validate: docs ↔ deploy consistency ==="
+cd "$(dirname "$0")/.."
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+if bash "$REPO_ROOT/hermes-data/tests/validate-docs.sh" 2>&1; then
+    echo -e "  ${GREEN}OK${NC} docs consistent with deploy.sh"
+else
+    echo -e "  ${RED}FAIL${NC} docs/deploy mismatch"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo -e "${GREEN}All validation checks passed.${NC}"
     exit 0
