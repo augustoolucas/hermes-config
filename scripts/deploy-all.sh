@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,7 +11,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 failures=()
 
 step() { echo -e "\n${GREEN}==>${NC} $1"; }
-fail() { echo -e "${RED}FAIL:${NC} $1"; failures+=("$1"); }
+fail() { echo -e "${RED}  FAIL:${NC} $1"; failures+=("$1"); }
 
 verify_checksum() {
     local host_path="$1"
@@ -28,11 +28,18 @@ verify_checksum() {
 }
 
 step "Step 1: Validation"
-bash "$REPO_ROOT/hermes-data/tests/validate.sh"
-echo -e "  ${GREEN}OK${NC}   validation passed"
+if bash "$REPO_ROOT/hermes-data/tests/validate.sh"; then
+    echo -e "  ${GREEN}OK${NC}   validation passed"
+else
+    fail "Validation failed"
+fi
 
 step "Step 2: Deploy"
-bash "$REPO_ROOT/deploy.sh"
+if bash "$REPO_ROOT/deploy.sh"; then
+    echo -e "  ${GREEN}OK${NC}   deploy succeeded"
+else
+    fail "Deploy script failed"
+fi
 
 step "Step 3: Wait for container restart"
 sleep 5
@@ -43,10 +50,10 @@ verify_checksum "hermes-data/SOUL.md"                    "/opt/data/profiles/acc
 verify_checksum "hermes-data/plugins/accountability-tools/tools.py" "/opt/data/plugins/accountability-tools/tools.py"
 
 step "Step 5: Cron health"
-if docker exec hermes hermes -p accountability cron list 2>/dev/null | grep -q c9e31c8f7b6a; then
-    echo -e "  ${GREEN}OK${NC}   cron job found"
+if docker exec hermes hermes -p accountability cron list 2>/dev/null | grep c9e31c8f7b6a | grep -q 'ok'; then
+    echo -e "  ${GREEN}OK${NC}   cron job healthy (last_status=ok)"
 else
-    fail "Cron job c9e31c8f7b6a not found"
+    fail "Cron job c9e31c8f7b6a not healthy"
 fi
 
 echo

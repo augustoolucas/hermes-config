@@ -14,13 +14,13 @@ Workflows for developing and debugging the Hermes accountability partner system.
 
 1. Read cron state:
    ```
-   cat /opt/data/profiles/accountability/.cron/responsibility_partner/state.json
+   docker exec hermes cat /opt/data/profiles/accountability/.cron/responsibility_partner/state.json
    ```
    Check: windows, `sent_at`, `responded_at` (null means pending/failed), `followup_action`.
 
 2. Find latest request dump:
    ```
-   ls -lt /opt/data/profiles/accountability/sessions/request_dump_cron_c9e31c8f7b6a*
+   docker exec hermes ls -lt /opt/data/profiles/accountability/sessions/request_dump_cron_c9e31c8f7b6a*
    ```
 
 3. Inspect the dump:
@@ -36,7 +36,7 @@ Workflows for developing and debugging the Hermes accountability partner system.
 
 5. Read container jobs.json:
    ```
-   docker exec hermes cat /home/hermes/.hermes/profiles/accountability/config/jobs.json
+   docker exec hermes cat /opt/data/cron/jobs.json
    ```
    Verify model, enabled_toolsets (should include `accountability-tools`), and prompt.
 
@@ -55,14 +55,14 @@ Workflows for developing and debugging the Hermes accountability partner system.
 
 3. Wait 5 seconds for container restart, then verify checksums:
    ```
-   md5sum hermes-data/config/SOUL.md
-   docker exec hermes md5sum /home/hermes/.hermes/profiles/accountability/config/SOUL.md
+   md5sum hermes-data/SOUL.md
+   docker exec hermes md5sum /opt/data/profiles/accountability/SOUL.md
 
-   md5sum hermes-data/plugins/checkin/checkin.py
-   docker exec hermes md5sum /opt/hermes/plugins/checkin/checkin.py
+   md5sum hermes-data/scripts/checkin.py
+   docker exec hermes md5sum /opt/data/scripts/checkin.py
 
-   md5sum hermes-data/plugins/tools/tools.py
-   docker exec hermes md5sum /opt/hermes/plugins/tools/tools.py
+   md5sum hermes-data/plugins/accountability-tools/tools.py
+   docker exec hermes md5sum /opt/data/plugins/accountability-tools/tools.py
    ```
 
 4. Verify cron:

@@ -49,9 +49,9 @@ tools.py (accountability-tools plugin)
 1. Run `hermes-data/tests/validate.sh` — abort if any check fails
 2. Run `./deploy.sh`
 3. Verify checksums match repo ↔ container:
-   - `md5sum hermes-data/config/SOUL.md` vs `docker exec hermes md5sum /home/hermes/.hermes/profiles/accountability/config/SOUL.md`
-   - `md5sum hermes-data/plugins/checkin/checkin.py` vs `docker exec hermes md5sum /opt/hermes/plugins/checkin/checkin.py`
-   - `md5sum hermes-data/plugins/tools/tools.py` vs `docker exec hermes md5sum /opt/hermes/plugins/tools/tools.py`
+   - `md5sum hermes-data/SOUL.md` vs `docker exec hermes md5sum /opt/data/profiles/accountability/SOUL.md`
+   - `md5sum hermes-data/scripts/checkin.py` vs `docker exec hermes md5sum /opt/data/scripts/checkin.py`
+   - `md5sum hermes-data/plugins/accountability-tools/tools.py` vs `docker exec hermes md5sum /opt/data/plugins/accountability-tools/tools.py`
 4. `docker exec hermes hermes -p accountability cron list` — all jobs show last_status=ok
 5. Wait 5s after restart, check no error request dumps generated
 6. Audit `git diff --cached` for sensitive data before commit
