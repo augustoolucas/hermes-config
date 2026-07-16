@@ -107,6 +107,18 @@ echo -e "${GREEN}Plugin accountability-tools copiado.${NC}"
 
 echo "=== Criando diretórios dos skills ==="
 docker exec hermes mkdir -p /opt/data/skills/productivity/unblock-helper
+docker exec hermes mkdir -p /opt/data/skills/productivity/end-of-day-reflect
+docker exec hermes mkdir -p /opt/data/skills/productivity/context-recall
+docker exec hermes mkdir -p /opt/data/skills/productivity/task-breakdown
+
+echo "=== Copiando skills para o container ==="
+for skill in end-of-day-reflect context-recall task-breakdown unblock-helper; do
+    docker cp hermes-data/skills/productivity/$skill/SKILL.md \
+        hermes:/opt/data/skills/productivity/$skill/SKILL.md
+    docker exec hermes mkdir -p /opt/data/profiles/accountability/skills/productivity/$skill
+    docker cp hermes-data/skills/productivity/$skill/SKILL.md \
+        hermes:/opt/data/profiles/accountability/skills/productivity/$skill/SKILL.md
+done
 
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/scripts/checkin.py
 docker exec hermes cp /opt/data/scripts/checkin.py /opt/data/home/.cron/responsibility_partner/checkin.py

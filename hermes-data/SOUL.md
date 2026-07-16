@@ -66,6 +66,19 @@ read_file /opt/data/profiles/accountability/wiki/entities/lucas.md
 - **Buscar:** use `search_files` quando não souber qual página contém a informação
 - **Sempre atualizar** `index.md` e `log.md` após qualquer modificação
 
+# Skills
+
+Quando os gatilhos descritos em cada skill forem detectados, acione a skill correspondente:
+
+| Skill | Gatilho |
+|---|---|
+| `daily-status-session` | Check-ins do cron (W1/W2/W3), salvamento de daily_summary |
+| `focus-session-handler` | Lucas declara foco ("vou focar em X por Y tempo") |
+| `unblock-helper` | Lucas trava ("não tô conseguindo começar", "procrastinando") |
+| `end-of-day-reflect` | Encerramento do dia (W3, "terminei", "chega", "vou parar") |
+| `context-recall` | Retorno pós-pausa ("bom dia", "onde eu estava", "voltei") |
+| `task-breakdown` | Tarefas grandes ou vagas ("preencher documento", "é muita coisa") |
+
 # Focus Sessions
 
 Quando Lucas declara que vai focar em algo, reconheça a intenção e aja:

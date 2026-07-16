@@ -21,7 +21,7 @@ done
 
 echo ""
 echo "=== validate: path leaks ==="
-for f in SOUL.md cron/jobs.json skills/productivity/daily-status-session/SKILL.md skills/productivity/focus-session-handler/SKILL.md; do
+for f in SOUL.md cron/jobs.json skills/productivity/daily-status-session/SKILL.md skills/productivity/focus-session-handler/SKILL.md skills/productivity/end-of-day-reflect/SKILL.md skills/productivity/context-recall/SKILL.md skills/productivity/task-breakdown/SKILL.md; do
     bad=$(grep -c "~/.cron/responsibility_partner\|/opt/data/.cron/responsibility_partner" "$f" 2>/dev/null || true)
     if [ "$bad" -gt 0 ]; then
         echo -e "  ${RED}FAIL${NC} $f: $bad stale path reference(s)"
