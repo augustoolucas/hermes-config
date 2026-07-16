@@ -94,4 +94,8 @@ When adding a new feature, update these files if applicable:
 | State field changes (state.json / focus_sessions.json) | `checkin.py` consumers + `tools.py` producers + consumer cross-ref in hermes-dev skill |
 | Path / env var changes | `deploy.sh` + `AGENTS.md` config table + `docker-compose.yaml` (if new env var) |
 
+Post-implementation reflection: before committing, pause and review the entire
+implementation. Ask yourself: did every planned change actually get implemented?
+Does this implementation introduce any bug or regression?
+
 Post-implementation: run `hermes-data/tests/validate.sh` before commit. The `validate-docs.sh` check auto-verifies tool/skill/check counts match AGENTS.md.
