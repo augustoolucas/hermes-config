@@ -135,9 +135,9 @@ echo ""
 echo "=== validate: AGENTS.md counts ==="
 AGENTS="$REPO_ROOT/AGENTS.md"
 if [ -f "$AGENTS" ]; then
-    # Tools count (first match in Current health section)
+    # Tools count (last match = "Current health" section at bottom of file)
     TOOLS_REAL=$(grep -c 'name="' "$REPO_ROOT/hermes-data/plugins/accountability-tools/__init__.py" 2>/dev/null || echo 0)
-    TOOLS_DOC=$(grep -oP '\d+(?= tools)' "$AGENTS" 2>/dev/null | head -1 || echo "")
+    TOOLS_DOC=$(grep -oP '\d+(?= tools)' "$AGENTS" 2>/dev/null | tail -1 || echo "")
     if [ "$TOOLS_REAL" = "$TOOLS_DOC" ]; then
         echo -e "  ${GREEN}OK${NC}   tools: $TOOLS_REAL documented = $TOOLS_REAL real"
     else
@@ -145,9 +145,9 @@ if [ -f "$AGENTS" ]; then
         FAILURES=$((FAILURES + 1))
     fi
 
-    # Skills count (first match in Current health section)
+    # Skills count (last match = "Current health" section at bottom of file)
     SKILLS_REAL=$(ls -d "$REPO_ROOT/hermes-data/skills/productivity/"*/ 2>/dev/null | wc -l)
-    SKILLS_DOC=$(grep -oP '\d+(?= skills)' "$AGENTS" 2>/dev/null | head -1 || echo "")
+    SKILLS_DOC=$(grep -oP '\d+(?= skills)' "$AGENTS" 2>/dev/null | tail -1 || echo "")
     if [ "$SKILLS_REAL" = "$SKILLS_DOC" ]; then
         echo -e "  ${GREEN}OK${NC}   skills: $SKILLS_DOC documented = $SKILLS_REAL real"
     else
