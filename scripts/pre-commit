@@ -20,7 +20,7 @@ echo "==> Running sensitive data audit..."
 
 PATTERNS_FILE="$REPO_ROOT/.sensitive_patterns"
 if [ -f "$PATTERNS_FILE" ]; then
-    PATTERNS=$(grep -v '^#' "$PATTERNS_FILE" | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+    PATTERNS=$(grep -v '^#' "$PATTERNS_FILE" | grep -v '^$' | tr '\n' ',' | sed 's/,$//' || true)
 else
     echo -e "  ${RED}WARNING${NC}: .sensitive_patterns file not found. Skipping audit."
     echo "  Create .sensitive_patterns with one pattern per line (e.g. SEU_CHAT_ID, sk-, @gmail, etc.)"

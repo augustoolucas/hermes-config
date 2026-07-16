@@ -41,8 +41,19 @@ else
     fail "Deploy script failed"
 fi
 
-step "Step 3: Wait for container restart"
-sleep 5
+step "Step 3: Wait for container to be ready"
+READY=false
+for i in $(seq 1 30); do
+    if docker exec hermes echo ok 2>/dev/null; then
+        echo -e "  ${GREEN}OK${NC}   container ready after ${i}s"
+        READY=true
+        break
+    fi
+    sleep 2
+done
+if [ "$READY" = false ]; then
+    fail "Container not ready after 60s"
+fi
 
 step "Step 4: Health check — checksum verification"
 verify_checksum "hermes-data/scripts/checkin.py"         "/opt/data/scripts/checkin.py"

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOOK_SRC="$(dirname "$0")/pre-commit"
-HOOK_DST=".git/hooks/pre-commit"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+HOOK_SRC="$REPO_ROOT/scripts/pre-commit"
+HOOK_DST="$REPO_ROOT/.git/hooks/pre-commit"
 
 if [ -f "$HOOK_DST" ]; then
     echo "pre-commit hook already exists at .git/hooks/pre-commit — not overwriting."
