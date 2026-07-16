@@ -46,10 +46,11 @@ fi
 ALL_PATTERNS=("${LEAK_PATTERNS[@]}" "${EXTERNAL[@]}")
 
 for pattern in "${ALL_PATTERNS[@]}"; do
-    # Exclude this test file itself, .git/, .codegraph/, and sketchpad/
+    # Exclude this test file itself, .git/, .codegraph/, sketchpad/, docs/, and .sensitive_patterns
     hits=$(grep -rlP "$pattern" . --include='*.py' --include='*.sh' --include='*.md' \
            --include='*.json' --include='*.yaml' --include='*.yml' \
            --exclude-dir=.git --exclude-dir=.codegraph --exclude-dir=sketchpad --exclude-dir=docs \
+           --exclude=.sensitive_patterns \
            2>/dev/null || true)
     if [ -n "$hits" ]; then
         echo -e "  ${RED}FAIL${NC} potential leak: \"$pattern\" found in:"

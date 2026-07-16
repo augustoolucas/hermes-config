@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -eq 0 ]; then
+    cat <<EOF
+Usage: hermes-exec <command> [args...]
+
+Examples:
+  hermes-exec hermes -p accountability cron list
+  hermes-exec python3 -c '...'   # auto-adds -u hermes
+  hermes-exec bash
+  hermes-exec sh -c 'echo hello'
+EOF
+    exit 0
+fi
+
+case "$1" in
+    python3|bash|sh|hermes)
+        docker exec -u hermes hermes "$@"
+        ;;
+    *)
+        docker exec hermes "$@"
+        ;;
+esac

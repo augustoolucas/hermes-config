@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+FAILED=0
+
+echo "==> Running project validation..."
+if cd "$REPO_ROOT/hermes-data" && bash tests/validate.sh; then
+    echo -e "${GREEN}PASSED${NC} project validation"
+else
+    echo -e "${RED}FAILED${NC} project validation"
+    FAILED=1
+fi
+
+echo "==> Running sensitive data audit..."
+
+PATTERNS_FILE="$REPO_ROOT/.sensitive_patterns"
+if [ -f "$PATTERNS_FILE" ]; then
+    PATTERNS=$(grep -v '^#' "$PATTERNS_FILE" | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+else
+    echo -e "  ${RED}WARNING${NC}: .sensitive_patterns file not found. Skipping audit."
+    echo "  Create .sensitive_patterns with one pattern per line (e.g. SEU_CHAT_ID, sk-, @gmail, etc.)"
+    exit 0
+fi
+
+if [ -n "$PATTERNS" ]; then
+    if cd "$REPO_ROOT" && SENSITIVE_PATTERNS="$PATTERNS" bash hermes-data/tests/test_sensitive_data.sh; then
+        echo -e "${GREEN}PASSED${NC} sensitive data audit"
+    else
+        echo -e "${RED}FAILED${NC} sensitive data audit"
+        FAILED=1
+    fi
+else
+    echo -e "  ${GREEN}SKIPPED${NC} (no patterns in .sensitive_patterns)"
+fi
+
+if [ "$FAILED" -ne 0 ]; then
+    echo -e "\n${RED}Pre-commit checks FAILED.${NC}"
+    exit 1
+fi
+
+echo -e "\n${GREEN}All pre-commit checks passed.${NC}"
+exit 0
