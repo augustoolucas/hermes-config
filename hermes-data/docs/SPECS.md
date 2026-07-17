@@ -1,4 +1,4 @@
-# Hermes — Accountability Partner v2.6 Spec
+# Hermes — Accountability Partner v2.7 Spec
 
 ---
 
@@ -20,6 +20,9 @@ Version 2 adds six major capabilities on top of v1:
 5. **Calendar-Aware Proactive Suggestions** (v2.4) — Google Calendar integration detects free blocks and suggests focus sessions; multi-calendar support with stale window filtering
 6. **LLM Wiki Memory** (v2.5) — inspectable Markdown-based long-term memory replacing Hindsight; free web search via SearXNG and web extraction via fastCRW
 7. **Auto-Fill & Follow-Up Fix** (v2.6) — automatic response detection via daily_summary mtime; follow-up duplicate prevention; complete architecture documentation
+8. **accountability-tools Plugin** (v2.7) — 6 dedicated tools encapsulating all file I/O behind a single configuration source
+9. **Single-Turn Cron** (v2.6) — deterministic, LLM-independent check-in delivery with zero multi-turn HTTP 400 failures
+10. **STT Voice Input** (v2.7) — faster-whisper local transcription for Portuguese voice messages via Telegram
 
 The assistant does not execute tasks. It monitors, tracks, reminds, and maintains cross-session memory.
 
@@ -636,6 +639,116 @@ The complete system architecture is documented in `hermes-data/docs/ACCOUNTABILI
 
 ---
 
+### 23. Holiday Suppression (v2.6)
+
+#### 23.1 Problem
+
+Check-ins fire on holidays (national, local, or bridge days) producing unnecessary noise. The check-in system had no awareness of non-working days beyond weekends.
+
+#### 23.2 Solution
+
+A `HOLIDAYS` set in `checkin.py:148` lists known holidays as `"YYYY-MM-DD"` strings. When the current date is in the set, checkin.py returns `action: "none", reason: "holiday"` — all check-ins, follow-ups, re-engagement, and proactive suggestions are suppressed for the day.
+
+The Wake Agent Gate (Section 5) ensures the cron agent is not invoked at all on holidays — no LLM call, no Telegram delivery, no error notifications.
+
+**Adding a holiday:** edit the `HOLIDAYS` set in `checkin.py`, redeploy. No config file, no env var — holidays are infrequent enough (3-4×/year) that hardcoding is the right tradeoff.
+
+---
+
+### 24. accountability-tools Plugin (v2.7)
+
+#### 24.1 Problem
+
+Before v2.7, the SOUL.md, SKILL.md, and jobs.json all referenced absolute file paths for reading and writing daily summaries, focus sessions, and state.json. When the profile migrated from default to accountability, these paths diverged: some files pointed to `/opt/data/.cron/` (default), others to `/opt/data/profiles/accountability/.cron/` (profile). The live agent and cron agent operated on different directories, causing split-brain: check-in auto-fill never found the daily_summary file, follow-ups fired after user responded, focus sessions were invisible.
+
+#### 24.2 Solution
+
+A dedicated plugin (`hermes-data/plugins/accountability-tools/`) encapsulates all file I/O behind 6 tools. Each tool reads `CHECKIN_DATA_DIR` from the environment — a single source of truth. SOUL.md, SKILL.md, and jobs.json reference tools by name instead of absolute paths.
+
+**Tools exposed (6 total):**
+
+| Tool | Purpose |
+|---|---|
+| `daily_summary_load(date?)` | Read today's or a specific day's summary |
+| `daily_summary_save(date, tasks, metrics, intention, plans_for_next_day)` | Write daily summary. Rejects `date != today` (prevents wrong-date bug). |
+| `focus_session_start(task, duration_minutes)` | Register a new focus session. Sets `end_epoch = started_at + duration*60`. |
+| `focus_session_complete(session_id, result?)` | Mark a focus session as completed |
+| `checkin_state_update(window, field, value)` | Update state.json check-in fields |
+| `focus_session_status(session_id?)` | Check active session status |
+
+**Key design decisions:**
+- `focus_session_start` sets `task` field (NOT `task_name`) — matches `checkin.py:336` consumer
+- `focus_session_complete` writes `completed_date` as string YYYY-MM-DD (NOT epoch `completed_at`) — matches `checkin.py` gamification
+- `daily_summary_save` validates `date == today()` — rejects wrong-date writes that caused the 2026-07-09 incident
+
+#### 24.3 Deployment
+
+The plugin is volume-mounted at `/opt/data/plugins/accountability-tools/` and symlinked into `/opt/data/profiles/accountability/plugins/`. It is enabled in `config.yaml` `plugins.enabled` and listed in `platform_toolsets.telegram`.
+
+---
+
+### 25. Single-Turn Cron Prompt (v2.6)
+
+#### 25.1 Problem
+
+Before v2.6, the cron agent had a multi-turn LLM flow: turn 1 called `daily_summary_load` (returned tool result), turn 2 re-invoked the agent with the result. The opencode-go backend intermittently failed on turn 2 with HTTP 400 "Upstream request failed", causing check-in messages to be silently dropped. Every check-in depended on LLM infrastructure stability.
+
+#### 25.2 Solution
+
+The cron prompt was reduced to a **single turn** with zero tool calls. The prompt is 593 characters in Portuguese, generic enough to cover all `checkin.py` actions:
+
+> For action `send_checkin`, `send_followup`, `send_escalation`, `send_reengagement`, `suggest_focus`, `generate_daily_summary`, `focus_session_checkin`: echo message. For action `none`: respond with [SILENT]. For any other action: echo message.
+
+Key properties:
+- **No tool calls** — no `accountability-tools`, no `session_search`, no multi-turn risk
+- **`enabled_toolsets: ['send_message']`** — only the delivery tool
+- **Skill: none** — no skill loaded, pure prompt
+- **Model: null** — inherits config default (`deepseek-v4-pro`)
+- **593 chars** — fits in one LLM call, no tool round-trip
+
+#### 25.3 Impact
+
+- Zero request dumps since adoption (previously 5-10/day during provider instability)
+- No multi-turn HTTP 400 failures
+- All check-in intelligence lives in `checkin.py` (Python), not in the LLM — deterministic, debuggable, testable
+- `checkin_sent_at` is marked by `checkin.py` itself on emission (no cron agent writes to state.json)
+
+---
+
+### 26. Voice Input via faster-whisper STT (v2.7)
+
+#### 26.1 Problem
+
+In v2.6, the system had Edge TTS for Hermes → user voice messages, but no STT for user → Hermes. Voice messages sent to the Telegram bot were silently dropped. For ADHD, being able to report status by speaking (rather than typing) reduces the friction of check-in responses.
+
+#### 26.2 Solution
+
+faster-whisper (v1.2.1) was installed in the Hermes container and configured as the STT provider.
+
+**Configuration (`config.yaml`):**
+```yaml
+stt:
+  enabled: true
+  local:
+    model: small
+```
+
+**Model:** `small` (~466 MB) — good accuracy for Brazilian Portuguese, runs entirely locally (no API key, no internet). First transcription downloads the model (~30-60s); subsequent transcriptions are fast (~2-5s).
+
+**How it works:**
+1. User sends voice message to Telegram bot
+2. Hermes gateway receives the audio
+3. faster-whisper transcribes locally
+4. Transcription flows as user text message into the agent
+5. Agent responds normally — no difference from text input
+
+**Dependencies:**
+- `faster-whisper==1.2.1` in container venv
+- `stt` added to `platform_toolsets.telegram`
+- Zero external API cost
+
+---
+
 ## Section 2: Technical Implementation
 
 ### Architecture Overview
@@ -682,7 +795,7 @@ metrics:
   checkins_total: 0
   current_streak: 0
 ---
-```
+
 
 **Paths:**
 - Canonical: `/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md`
@@ -855,6 +968,9 @@ Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
 - `daily-status-session` (v2.1.0) — optimized flow for status updates, parallel tool calls
 - `focus-session-handler` (v1.0.0) — focus session lifecycle management
 - `unblock-helper` (v1.0.0) — task initiation paralysis micro-step reduction (NEW in v2.3)
+- `end-of-day-reflect` (v1.0.0) — structured W3 closure with reflection prompts (NEW in v2.7)
+- `context-recall` (v1.0.0) — post-pause context recovery for resuming work (NEW in v2.7)
+- `task-breakdown` (v1.0.0) — granular planning for large, vague tasks (NEW in v2.7)
 - `llm-wiki` (v2.1.0) — inspectable Markdown-based long-term memory (NEW in v2.5)
 
 ---
@@ -952,11 +1068,11 @@ Added in v2.5.
 
 **Container:** `hermes` (nousresearch/hermes-agent)
 **Volume mount:** `~/.hermes` → `/opt/data`
-**Model:** minimax-m2.7 via opencode-go
+**Model:** deepseek-v4-pro via opencode-go
 **Platform:** Telegram only
 **Cron schedule:** `*/5 8-12,15-18 * * 1-5` (BRT)
 **Memory provider:** LLM Wiki (Markdown files, inspectable). Hindsight removed in v2.5.
-**SOUL.md:** `/opt/data/SOUL.md`
+**SOUL.md:** `/opt/data/profiles/accountability/SOUL.md`
 
 **Cron Jobs:**
 | Job | Schedule | Purpose |
@@ -966,10 +1082,7 @@ Added in v2.5.
 | Focus session one-shots | Dynamic | Created per focus session declaration |
 
 **Toolsets enabled for cron:**
-- `file` — read/write daily summaries and state files
-- `session_search` — search past sessions for context
-- `send_message` — deliver messages to Telegram
-- `web` — web search if needed
+- `send_message` — deliver messages to Telegram (only toolset enabled; single-turn prompt, no tool calls)
 
 **Additional containers (docker-compose):**
 | Container | Image | Purpose |
@@ -981,7 +1094,7 @@ Added in v2.5.
 
 ---
 
-### What's Working (v2.6)
+### What's Working (v2.7)
 
 - Daily status capture with immediate persistence
 - 3x/day scheduled check-ins with follow-up logic
@@ -1007,6 +1120,13 @@ Added in v2.5.
 - Git backup for daily summary versioning
 - Wake Agent gate — silent skip for `action: "none"` (no LLM call on weekends/holidays/no-op)
 - Extended cron schedule for re-engagement and proactive suggestions
+- **Holiday suppression** — hardcoded `HOLIDAYS` set in checkin.py (v2.6)
+- **accountability-tools plugin** — 6 tools encapsulating all file I/O with CHECKIN_DATA_DIR as single source of truth (v2.7)
+- **Single-turn cron prompt** — 593 chars, zero tool calls, zero multi-turn HTTP 400 failures (v2.6)
+- **6 live agent skills** — daily-status-session, focus-session-handler, unblock-helper, end-of-day-reflect, context-recall, task-breakdown (v2.7)
+- **Voice input (STT)** — faster-whisper `small` model, local, free, Brazilian Portuguese (v2.7)
+- **Dev tooling** — 9 validation checks (validate.sh), pre-commit hook, deploy-all.sh, hermes-dev + parallel-builder opencode skills (v2.7)
+- **Documentation** — SPECS.md, ACCOUNTABILITY-FLOW.md, AGENTS.md with auto-count validation (v2.7)
 
 ### Known Limitations
 
@@ -1018,7 +1138,8 @@ Added in v2.5.
 - Gamification streaks are basic (consecutive days) — no weighted scoring or category-specific streaks
 - Git backup is best-effort — if git fails silently, no alert is raised
 - fastCRW (crw) uses LightPanda for JS rendering; complex anti-bot pages may require the optional Chrome tier (not included due to resource constraints)
-- Voice check-ins depend on TTS being configured (Edge TTS enabled in v2.5, Portuguese voice `pt-BR-FranciscaNeural`)
+- STT first transcription is slow (~30-60s) while the `small` model downloads from HuggingFace; subsequent transcriptions are fast (~2-5s)
+- Edge TTS (`pt-BR-FranciscaNeural`) for Hermes → user voice is configured; voice delivery logic is not yet integrated into checkin.py
 
 ---
 
@@ -1037,8 +1158,17 @@ Added in v2.5.
 | `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
 | `/opt/data/config.yaml` | Updated | v2.4-v2.6 — Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR), removed google_meet + gemini_meet plugins |
 | `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL. v2.6 — removed GEMINI_API_KEY, PULSE_RUNTIME_PATH, shm_size |
-| `deploy.sh` | Updated | v2.3 — Created. v2.6 — removed meet plugins, pulseaudio, playwright sections; added profile scripts dir copy |
+| `deploy.sh` | Updated | v2.3 — Created. v2.6 — removed meet plugins, pulseaudio, playwright sections; added profile scripts dir copy. v2.7 — accountability-tools plugin copy + symlink, smart merge for jobs.json preserving scheduler state |
 | `hermes-data/plugins/gemini_meet/` | Removed (v2.6) | Plugin for Gemini Live voice integration in Google Meet — discontinued |
+| `hermes-data/plugins/accountability-tools/` | Created (v2.7) | 6 tools encapsulating file I/O — daily_summary_load/save, focus_session_start/complete, checkin_state_update, focus_session_status |
+| `hermes-data/skills/productivity/end-of-day-reflect/SKILL.md` | Created (v2.7) | Structured W3 closure with reflection prompts |
+| `hermes-data/skills/productivity/context-recall/SKILL.md` | Created (v2.7) | Post-pause context recovery for resuming work |
+| `hermes-data/skills/productivity/task-breakdown/SKILL.md` | Created (v2.7) | Granular planning for large, vague tasks |
+| `hermes-data/tests/` | Created (v2.7) | 9 validation checks — validate.sh + test_checkin_actions.py + test_state_machine.py + test_tool_format.py + test_sensitive_data.sh + validate-docs.sh |
+| `scripts/` (repo scripts) | Created (v2.7) | pre-commit, setup-hooks, deploy-all.sh, commit-log.sh |
+| `.opencode/skills/hermes-dev.md` | Created (v2.7) | Debug and deploy workflows for Hermes development |
+| `.opencode/skills/parallel-builder.md` | Created (v2.7) | Parallel implementation strategy using git worktrees + subagents |
+| `AGENTS.md` | Created (v2.7) | Project context, commands, deploy checklist, feature checklist |
 | `hermes-data/docs/ACCOUNTABILITY-FLOW.md` | Created (v2.6) | Complete architecture documentation — 18 sections, 11 Mermaid diagrams |
 | `.env.example` | Updated | v2.5 — added GOOGLE_SERVICE_ACCOUNT_PATH, GOOGLE_CALENDAR_ID (now comma-separated), FIRECRAWL_API_URL. v2.6 — removed GEMINI_API_KEY |
 
@@ -1078,5 +1208,5 @@ The following improvements were identified during the v2 design process. They ar
 
 ---
 
-*Document version: 2.6 — based on Hermes Accountability Partner v2.6 implementation for Lucas Alcantara.*
-*Date: 2026-07-09*
+*Document version: 2.7 — based on Hermes Accountability Partner v2.7 implementation for Lucas Alcantara.*
+*Date: 2026-07-17*
