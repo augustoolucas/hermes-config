@@ -11,7 +11,7 @@ Hermes is an accountability partner for a developer (Lucas). It operates in two 
 1. **Live sessions** — on-demand interaction when Lucas initiates a conversation
 2. **Scheduled check-ins** — automated prompts at 3 windows during workdays
 
-Version 2 adds six major capabilities on top of v1:
+Version 2 adds the following capabilities on top of v1:
 
 1. **Focus Sessions** — declared periods of concentrated work with dedicated check-ins
 2. **Escalation** — mandatory end-of-day status capture with multi-level follow-up
@@ -798,8 +798,10 @@ metrics:
 
 
 **Paths:**
-- Canonical: `/opt/data/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md`
+- Canonical (profile): `/opt/data/profiles/accountability/.cron/responsibility_partner/daily_summary_YYYY-MM-DD.md`
+- Symlink safety net: `/opt/data/.cron/responsibility_partner/` → profile path
 - Note: `~` resolves differently for cron agent (`/opt/data`) vs main agent (`/opt/data/home`). Always use absolute paths.
+- The `CHECKIN_DATA_DIR` env var is the single source of truth — the accountability-tools plugin reads from it.
 
 ---
 
@@ -853,8 +855,10 @@ W3 check-in → no response → 20min → follow-up (5min window) → no respons
   "windows": {
     "1": {
       "scheduled_epoch": 1717514400,
+      "checkin_emitted_at": null,
       "checkin_sent_at": null,
       "user_responded_at": null,
+      "followup_emitted_at": null,
       "followup_action": null,
       "followup_sent_at": null,
       "escalation_sent": null,
@@ -865,6 +869,8 @@ W3 check-in → no response → 20min → follow-up (5min window) → no respons
   "proactive_suggestion_last": null
 }
 ```
+- `checkin_emitted_at` / `followup_emitted_at` — set by checkin.py when it emits the action
+- `checkin_sent_at` / `followup_sent_at` — also set by checkin.py on the same tick (single-turn cron has no tools to write state)
 
 **Copies (must stay synchronized):**
 1. `/opt/data/scripts/checkin.py` — canonical copy
@@ -881,7 +887,7 @@ Verify synchronization with `md5sum` across all 4 copies after any edit.
 **What it is:** A JSON-based state file plus a Hermes skill that manages focus sessions — declared periods of concentrated work with dedicated check-ins.
 
 **State File (`focus_sessions.json`):**
-Located at `/opt/data/.cron/responsibility_partner/focus_sessions.json`.
+Located at `/opt/data/profiles/accountability/.cron/responsibility_partner/focus_sessions.json` (same directory as `state.json` and `daily_summary.md` — all under `CHECKIN_DATA_DIR`).
 
 ```json
 {
@@ -1012,14 +1018,21 @@ Added in v2.5.
 [USER] ──message──> [LIVE AGENT]
                        │
                        ├── reads ──> [DAILY SUMMARY (today + previous)]
+                       │              via daily_summary_load()
                        │
                        ├── reads ──> [FOCUS SESSIONS JSON]
+                       │              via focus_session_status()
                        │
                        ├── reads ──> [LLM WIKI (user profile, long-term facts)]
                        │
                        ├── writes ──> [DAILY SUMMARY]
+                       │              via daily_summary_save()
                        │
                        ├── writes ──> [FOCUS SESSIONS JSON]
+                       │              via focus_session_start() / focus_session_complete()
+                       │
+                       ├── writes ──> [STATE.JSON]
+                       │              via checkin_state_update()
                        │
                        ├── creates ──> [CRON ONE-SHOT (focus session)]
                        │
@@ -1033,9 +1046,12 @@ Added in v2.5.
                                 │
                                 ├── reads ──> [FOCUS SESSIONS JSON]
                                 │
-                                └── action: [SEND CHECKIN | FOLLOW-UP | ESCALATION | SILENT | GENERATE SUMMARY]
-                                              │
-                                              └──> [CRON AGENT] ──delivers──> [USER]
+                                ├── writes ──> [STATE.JSON]
+                                │              (checkin_emitted_at, checkin_sent_at, followup_*, responded_at auto-fill)
+                                │
+                                └── stdout: {action, message} ──> [CRON AGENT (single-turn)]
+                                               │
+                                               └── delivers message ──> [USER]
 
 [CRON SCHEDULER] ──fires──> [FOCUS SESSION ONE-SHOT]
                                 │
@@ -1061,6 +1077,10 @@ Added in v2.5.
 7. **Focus session isolation** — regular check-ins are suppressed during active focus sessions. Focus sessions have their own dedicated check-in mechanism via cron one-shot jobs.
 
 8. **Mandatory end-of-day capture** — escalation ensures no workday goes without a status capture, even if the user does not respond to any check-in.
+
+9. **Single-turn cron** — the cron agent is purely a delivery mechanism. checkin.py generates the message + marks state; the agent echoes it in one LLM call with no tool calls. Zero multi-turn failures.
+
+10. **Tool-encapsulated file I/O** — the accountability-tools plugin reads `CHECKIN_DATA_DIR` as the single source of truth for all data paths. SOUL.md, SKILL.md, and jobs.json reference tool names, not file paths.
 
 ---
 
@@ -1154,9 +1174,9 @@ Added in v2.5.
 | `/opt/data/skills/research/llm-wiki/SKILL.md` | Enabled (v2.5) | Inspectable Markdown long-term memory (built-in Hermes skill) |
 | `/opt/data/wiki/` | Created (v2.5) | LLM Wiki directory — entities, concepts, schema |
 | `/opt/data/.hindsight/` | Removed (v2.5) | Hindsight data, config, and embedded PostgreSQL deleted |
-| `/opt/data/scripts/checkin.py` | Updated | v6 — retry, stale detection, git backup, escalation. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions. v2.6 — auto-fill user_responded_at, multi-calendar support, follow-up dedup |
-| `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule |
-| `/opt/data/config.yaml` | Updated | v2.4-v2.6 — Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR), removed google_meet + gemini_meet plugins |
+| `/opt/data/scripts/checkin.py` | Updated | v6 — retry, stale detection, git backup, escalation, holiday suppression. v2.2 — wakeAgent gate. v2.3 — re-engagement, W1 intention, W2/W3 context, nightly prep. v2.4 — Google Calendar proactive suggestions. v2.6 — auto-fill user_responded_at, multi-calendar support, follow-up dedup, checkin_sent_at marked on emission |
+| `/opt/data/cron/jobs.json` | Updated | v2.3 — send_reengagement. v2.4 — suggest_focus, extended schedule. v2.7 — single-turn prompt (593 chars, no tools) |
+| `/opt/data/config.yaml` | Updated | v2.4-v2.6 — Web backends (searxng + firecrawl), auxiliary vision model, WIKI_PATH, TTS (Edge, pt-BR), removed google_meet + gemini_meet plugins. v2.7 — STT (faster-whisper, small), accountability-tools in platform_toolsets |
 | `docker-compose.yaml` | Updated | v2.4 — GOOGLE env vars. v2.5 — searxng-core, searxng-valkey, crw, lightpanda, WIKI_PATH, SEARXNG_URL, FIRECRAWL_API_URL. v2.6 — removed GEMINI_API_KEY, PULSE_RUNTIME_PATH, shm_size |
 | `deploy.sh` | Updated | v2.3 — Created. v2.6 — removed meet plugins, pulseaudio, playwright sections; added profile scripts dir copy. v2.7 — accountability-tools plugin copy + symlink, smart merge for jobs.json preserving scheduler state |
 | `hermes-data/plugins/gemini_meet/` | Removed (v2.6) | Plugin for Gemini Live voice integration in Google Meet — discontinued |
